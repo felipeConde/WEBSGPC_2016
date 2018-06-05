@@ -1,0 +1,386 @@
+﻿<%@ Page Title="" Language="VB" MasterPageFile="~/Site.master" AutoEventWireup="false" CodeFile="GastoUsuarioRamal.aspx.vb" Inherits="GastoUsuarioRamal" %>
+
+<asp:Content ID="Content1" ContentPlaceHolderID="MainContent" Runat="Server">
+    <style>
+
+        .popover-demo .popover {
+                position: relative;
+                display: inline-block;
+                opacity: 1;
+                margin: 0 10px 30px;
+                z-index: 0;
+            }
+
+    </style>
+
+    <div id="myApp" ng-app="SGPCAPP" ng-controller="usuarioRamaisCtrl">
+        <input type="text" ID="txtusuariComum" ng-model="usuariocomum"  ng-init="usuariocomum='1'"  style="display:none" />
+        <div class="block-header">
+            <h2><%=titulo %></h2>
+            <%=subTitulo %>
+        </div>
+       
+       
+         <input type="text" id="txtcodigousuarioLogado" ng-model="codigousuarioLogado" ng-init="codigousuarioLogado='<%=Session("codigousuario") %>'" style="display:none"/>
+         <input type="text" id="txtmostraArea" ng-model="mostraArea" ng-init="mostraArea='<%= ViewState("mostraArea")  %>'" style="display:none"/>
+         <input type="text" id="txtCodigoUsuario" ng-model="codigousuario" ng-init="codigousuario='<%=Session("codigousuario") %>'" style="display:none"/>
+                <ul class="tab-nav" role="tablist" data-tab-color="amber">
+                                        <li id="exibe_movel"  runat="server"><a href='GastoUsuario.aspx?mostraArea=<%= ViewState("mostraArea")  %> '>Moveis</a></li>
+                                        <li class="active"><a href='#' role="tab" data-toggle="tab" aria-expanded="true">Ramais</a></li>                                        
+                                    </ul>
+        <div id="divBusca" runat="server" ng-show="mostraBusca">
+            <div class="card">
+
+                <div class="card-body card-padding">
+                    <div class="row">
+                        <div class="col-sm-9 m-b-15">
+                            <h2>Funcionários</h2>
+                            <select ng-model="ddlFuncionarios" ng-options="x as x.Descricao for x in listUsuarios track by x.Valor" data-placeholder="Selecione" id="cmbUsuarios" style="width: 100%" ng-change="buscaUsuarios()">
+                            </select>
+
+                        </div>
+                        <div class="col-sm-3 m-b-15">
+                             <h2>&nbsp</h2>
+                        <%--<a href="gestaoRel_ConsumoLinhasResult.aspx?celular={{x.LINHA}}&mes={{ dtvencimento.Descricao | limitTo : 2 : 0}}&ano={{ dtvencimento.Descricao | limitTo : 4 : 3}}" class="btn btn-primary waves-effect active" target="_blank">Relatório da Área ({{dtvencimento.Descricao}})</a>--%>
+
+                        
+                        <button type="button" class="btn btn-primary dropdown-toggle waves-effect" data-toggle="dropdown" aria-expanded="false" style="margin-right: 10px;">
+                                            Relatório
+                                            <span class="caret"></span>
+                         </button>
+                            <ul class="dropdown-menu" role="menu">
+                                            <li><a href="gestaoRel_ConsumoRamaisResult.aspx?tipo=HTML&celular={{x.LINHA}}&mes={{ dtvencimento.Valor | limitTo : 2 : 0}}&ano={{ dtvencimento.Valor | limitTo : 4 : 3}}" target="_blank"><i class="glyphicon glyphicon-file"></i>HTML</a></li>
+                                            <li><a href="gestaoRel_ConsumoRamaisResult.aspx?TIPO=EXCEL&celular={{x.LINHA}}&mes={{ dtvencimento.Valor | limitTo : 2 : 0}}&ano={{ dtvencimento.Valor | limitTo : 4 : 3}}" target="_blank"><i class="zmdi zmdi-grid zmdi-hc-fw"></i>EXCEL</a></li>
+                           </ul>
+                             <%--<select ng-model="dtvencimento" ng-options="x.Descricao for x in listVencimentos"  data-placeholder="Selecione"  id="cmbVencimento"  style="width:100px; padding-left:5px;"  ng-change="getResumoGastoUsuario()" >                 
+                            </select>--%>
+                              
+                           
+                        </div>
+
+                    </div> 
+                    <div class="row">
+                        <p class="text-center">Digite ou selecione o nome de um funcionário para exibir as informações de consumo.</p>
+                    </div>
+
+
+
+                </div>
+            </div>
+        </div>
+
+    <div id="divGastos" ng-show="mostraGastos">
+
+       <div class="card">
+
+        <div class="card-header">   
+            <div class="col-sm-9 m-b-15">
+                <h2>{{usuario.Nome_Usuario}}</h2>
+            <h5>{{usuario.Cargo_Usuario}} | AR: {{usuario.GRP_Codigo}} </h5>
+            </div>  
+            <div class="col-sm-3 m-b-15" >
+              <select ng-model="dtvencimento" ng-options="x.Descricao for x in listVencimentos track by x.Valor"  data-placeholder="Selecione"  id="cmbVencimento"  style="width:130px; padding-left:5px;"  ng-change="getResumoGastoUsuario()" >                 
+              </select>
+                <p class="f-500 c-black m-b-15"></p>
+                
+       
+                
+            </div>           
+            
+        </div>   
+           <div class="card-body card-padding">
+               <div class="row">
+                                    
+                       <table class="table table-striped">
+                           <thead>
+                               <tr>
+                                   <th>RAMAL</th>
+                                   <th>CHAMADAS</th>
+                                   <th>MINUTAGEM</th> 
+                                    <th>CRÉDITO MENSAL</th>                                
+                                   <th>CUSTO TOTAL</th>
+                               </tr>
+                           </thead>
+                           <tbody>
+                               <tr ng-repeat="x in resumo">
+                                   <td><a href="GestaoRel_ExtratoRamalResult.aspx?ramal={{x.RAMAL}}&mes={{ dtvencimento.Valor | limitTo : 2 : 0}}&ano={{ dtvencimento.Valor | limitTo : 4 : 3}}&tipo=HTML" target="_blank"> {{x.RAMAL}}</a></td>                                   
+                                   <td>{{x.CHAMADAS | number : 0}}</td>
+                                   <td>{{x.MINUTAGEM | number : 2}}</td>
+                                   <td>{{x.CREDITO | currency }}</td>                                           
+                                   <td>{{x.GASTO | currency }}</td>                                
+                                   
+                               </tr>
+                           </tbody>
+                       </table>
+               
+
+                   <div class="text-center" role="alert" ng-show="SemGastos">Sem informações no período.</div>
+
+               </div>
+           </div>
+
+           
+
+              
+           </div>
+
+
+        <div class="card">
+               <div class="card-body card-padding">
+               <div class="row">
+
+            <div role="tabpanel" id="divPainel">
+                                <ul class="tab-nav" role="tablist">
+                                    <li class="active"><a href="#TABMEDIA" aria-controls="home11" role="tab" data-toggle="tab">USUÁRIO X MÉDIA</a></li>
+                                    <li><a href="#TABSERVICO" aria-controls="profile11" role="tab" data-toggle="tab">CUSTO POR SERVIÇO</a></li>
+                                  
+                                </ul>
+                              
+                                <div class="tab-content">
+                                    <div role="tabpanel" class="tab-pane active" id="TABMEDIA">
+                                       
+
+                          <div class="col-sm-6 col-md-4" style="display:none;">
+                                <div class="mini-charts-item bgm-cyan">
+                                    <div class="clearfix">
+                                        <div class="chart stats-bar"></div>
+                                        <div class="count">
+                                            <small>Gasto com aparelho</small>
+                                            <h2>{{totalParcela | currency}}</h2>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+<span id="div_boxes">
+                        <div class="col-sm-6 col-md-4">
+                                <div class="mini-charts-item bgm-blue">
+                                    <div class="clearfix">
+                                        <div class="chart stats-bar"></div>
+                                        <div class="count">
+                                            <small>Gasto no mês ({{dtvencimento.Descricao}})</small>
+                                            <h2>{{(totalGasto) | currency}}</h2>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                   <div class="col-sm-6 col-md-4">
+                                <div class="mini-charts-item bgm-green">
+                                    <div class="clearfix">
+                                        <div class="chart stats-bar"></div>
+                                        <div class="count">
+                                            <small>Variação do mês anterior </small>
+                                            <h2>{{totalVariacao | currency}}</h2>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                     <div class="col-sm-6 col-md-4">
+                                <div class="mini-charts-item bgm-bluegray">
+                                    <div class="clearfix">
+                                        <div class="chart stats-bar"></div>
+                                        <div class="count">
+                                            <small>Variação da Área </small>
+                                            <h2>{{totalGasto-mediaMes | currency}}</h2>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+   </span>                                              <!-- Page Loader -->
+                                    <div id="divLoader" style="text-align: center">
+                                        <div class="card">
+                                            <div class="card-body card-padding">
+                                                <div class="row">
+                                                    <div class="preloader pls-blue">
+                                                        <svg class="pl-circular" viewBox="25 25 50 50">
+                                                            <circle class="plc-path" cx="50" cy="50" r="20" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                         <center>
+                                                  <div id="divGraficoMedia" style="width:100%; display:none;"></div>
+                                          </center>
+
+
+
+
+                                      
+                                    </div>
+                                    <div role="tabpanel" class="tab-pane" id="TABSERVICO">
+                                        
+                                         <div class="row">  
+                                                 
+                                              <center>
+                                                  <div id="divGraficoServ" style="width:100%; display:none;"></div>
+                                          </center>       
+                                            
+                                    </div>                                 
+                                </div>
+                            </div>
+
+
+           
+            </div>
+
+          </div>
+        </div>
+        </div>
+    </div>
+    </div>
+
+   
+</asp:Content>
+<asp:Content ID="Content2" ContentPlaceHolderID="FooterPlaceHolder1" Runat="Server">
+    
+    <!-- Charts - Please read the read-me.txt inside the js folder-->        
+      
+        <script src="js/flot-charts/pie-chart.js"></script>
+
+     <!-- ANGULAR Libraries -->
+        
+   <%-- <script src="vendors/bower_components/chosen_angular/chosen.jquery.js" async=""></script>       --%>
+        <script src="Scripts/angular.min.js"></script>
+   <%--  <script src="vendors/bower_components/angular-chosen-localytics/chosen.js" async=""></script>--%>
+    <script src="Scripts/highcharts-ng.js"></script>
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+
+        <script src="Scripts/angular/app.js"></script>
+        <script src="Scripts/angular/SGPCctrljs.js"></script>        
+        <script src="Scripts/angular-locale_pt-br.js"></script>
+    
+
+    <script>
+
+        var myData;
+
+        window.onload = function () {
+            //alert('teste');
+            //CarregaGrafico();
+
+            angular.element(document.getElementById('myApp')).scope().SessionUsuario = <%=Session("codigousuario")%>
+
+            //$("#MainContent_cmbCentral").chosen();           
+
+            setTimeout(function () {                
+                //alert(teste);
+                //angular.element(document.getElementById('myApp')).scope().mostraGastos = '<%=ViewState("mostraArea") %>';
+                
+                angular.element(document.getElementById('myApp')).scope().GetUsuario();
+                angular.element(document.getElementById('myApp')).scope().GetDatas();
+                angular.element(document.getElementById('myApp')).scope().getResumoGastoUsuario();
+                // alert(angular.element(document.getElementById('myApp')).scope().series);
+                //angular.element(document.getElementById('myApp')).scope().getGrafico();
+
+                //CarregaGraficos();
+
+            }, 500);
+
+            
+            
+        };
+
+    
+
+        function aplicaChosen(object)
+        {
+            //alert(object);
+            //$("#cmbAreaInternas").removeClass("chosen");
+            //$("#cmbCentral").chosen();
+            
+
+            $("#" + object).show();
+            $("#" + object).chosen('destroy');
+            $("#" + object).chosen();
+            $("#" + object).trigger("chosen:updated");
+            
+        }
+
+        function removeChosen(object) {
+
+            $("#" + object).chosen('destroy');
+                       
+           // $("#cmbAreaInternas_chosen").html('');
+           // alert("alert1");
+            //$("#cmbAreaInternas").removeClass();
+            //$("#cmbCentral").chosen();
+            //$("#cmbAreaInternas").chosen();
+        }
+
+        function setIndexChosen(object, i) {
+            //alert("teste");
+           // $('#' + object).val('03/2016');
+            $("#" + object).find('option:first-child').prop('selected', true).end().trigger('chosen:updated');
+        }
+
+        function CarregaGraficos()
+        {
+            var mostraArea = '<%=request.querystring("mostraArea") %>';
+            var codigousuario = angular.element(document.getElementById('myApp')).scope().codigousuario;
+            if(isRealValue(angular.element(document.getElementById('myApp')).scope().ddlFuncionarios))
+            {
+                //alert(angular.element(document.getElementById('myApp')).scope().ddlFuncionarios.Valor);
+                $("#div_boxes").show();
+            }
+            else
+            {
+                if(mostraArea=='S')
+                {
+                    codigousuario = '-1';
+                    $("#div_boxes").hide();
+                }
+               
+            }
+             
+            //alert(codigousuario);
+            $("#divLoader").show();
+            $("#divGraficoMedia").load("uc_graficoUsuarioMedia.aspx?ramal=1&codigousuario=" + codigousuario + "&mostraArea=" + mostraArea, function () {
+                //alert("Load was performed.");
+                $("#divLoader").hide();
+                $("#divGraficoMedia").show();
+            });
+
+            //divGraficoServ
+            $("#divGraficoServ").load("uc_GraficoUsuarioServicos.aspx?ramal=1&codigousuario=" + codigousuario, function () {
+                //alert("Load was performed.");
+                //$("#divLoader").hide();
+                $("#divGraficoServ").show();
+            });
+        }
+
+        function isRealValue(obj) {
+            return obj && obj !== 'null' && obj !== 'undefined';
+        }
+
+        function EscondeGrid() {
+            //alert("teste");
+            //$("#divPainel").hide(1000);
+            swal({
+                title: "",
+                text: "Sem informações no período",
+                timer: 2000,
+                showConfirmButton: false
+            });
+
+
+        }
+
+
+    </script>
+    <script>
+
+
+          
+
+           
+
+
+        </script>
+
+</asp:Content>
+
+

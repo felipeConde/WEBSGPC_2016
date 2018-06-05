@@ -1,0 +1,235 @@
+﻿Imports System.Net
+Imports System.Web.Http
+Imports System.Web.HttpContext
+Imports System.Collections.Generic
+Imports System.Data
+Imports System.Web.SessionState
+Imports System.Net.HttpRequestHeader
+Imports System.ServiceModel
+Imports System.ServiceModel.Web
+
+Public Class GastoUsuarioController
+    Inherits ApiController
+    Private _dao_commons As New DAO_Commons
+    Private _dao As New DAOUsuarios
+    Private _daoGrupo As New DAO_Grupos
+
+    Partial Public Class Items
+        Private _descricao As String
+        Private _valor As String
+        Public Property Descricao As String
+            Get
+                Return _descricao
+            End Get
+            Set(value As String)
+                _descricao = value
+            End Set
+        End Property
+
+        Public Property Valor As String
+            Get
+                Return _valor
+            End Get
+            Set(value As String)
+                _valor = value
+            End Set
+        End Property
+
+        Public Sub New()
+
+        End Sub
+
+        Public Sub New(pDescricao As String, pvalor As String)
+            _descricao = pDescricao
+            _valor = pvalor
+        End Sub
+    End Class
+
+
+
+    <HttpGet>
+    Public Function GetInfoUsuario(<FromUri> codigousuario As String) As Object
+        'Return New String() {"value1", "value2"}
+        'Return New String() {ConfigurationManager.ConnectionStrings("ConnectionString").ConnectionString}
+        Dim session As HttpSessionState = HttpContext.Current.Session
+        Dim usuario As List(Of AppUsuarios) = _dao.GetUsuarioById(codigousuario)
+
+        Dim Authorization As String = HttpContext.Current.Request.Headers("SessionUsuario")
+
+        If String.IsNullOrEmpty(Authorization) Then
+            Return "Sem permissão de acesso"
+            'Throw New HttpResponseException(HttpStatusCode.NotFound)
+        End If
+
+        ' Dim woc As IncomingWebRequestContext = WebOperationContext.Current.IncomingRequest
+        'Dim token As String = woc.Headers("Authorization")
+
+        Try
+            Dim grupo As AppGrupo = _daoGrupo.GetGruposByUsuario(DAO_Commons.PrepareString(codigousuario)).Item(0)
+            usuario(0).GRP_Codigo = usuario(0).GRP_Codigo & " - " & grupo.Grupo
+        Catch ex As Exception
+
+        End Try
+
+
+
+
+        Return usuario.Item(0)
+
+    End Function
+
+
+    <HttpGet>
+    Public Function getvencimentosfaturas(codigousuario As String) As List(Of Items)
+        'Return New String() {"value1", "value2"}
+        'Return New String() {ConfigurationManager.ConnectionStrings("ConnectionString").ConnectionString}
+        Dim _list As New List(Of Items)
+
+        Dim sql As String = " select to_char(f.dt_vencimento,'MM/YYYY')data "
+        sql += " from faturas f where f.dt_vencimento<to_date(to_char(sysdate,'MM/YYYY' ),'MM/YYYY') "
+        sql += " and to_date(to_char(f.dt_vencimento, 'MM/YYYY'),'MM/YYYY')>= to_date(to_char(add_months(sysdate,-12),'MM/YYYY'),'MM/YYYY') "
+        sql += " group by  to_char(f.dt_vencimento,'MM/YYYY')    order by  to_date(to_char(f.dt_vencimento,'MM/YYYY'),'MM/YYYY') desc "
+        Dim dt As DataTable = _dao_commons.myDataTable(sql)
+
+        For Each _row As DataRow In dt.Rows
+            _list.Add(New Items(MonthName(_row.Item("data").Substring(0, 2), True) & _row.Item("data").Substring(2), _row.Item("data")))
+        Next
+
+        Return _list
+
+    End Function
+
+    <HttpGet>
+    Public Function getResumoGastoUsuario(codigousuario As String, vencimento As String, Optional intervaloMes As Integer = 0) As Object
+        'Return New String() {"value1", "value2"}
+        'Return New String() {ConfigurationManager.ConnectionStrings("ConnectionString").ConnectionString}
+        Dim Authorization As String = HttpContext.Current.Request.Headers("SessionUsuario")
+
+        If String.IsNullOrEmpty(Authorization) Then
+            Return "Sem permissão de acesso"
+            'Throw New HttpResponseException(HttpStatusCode.NotFound)
+        End If
+
+        Return _dao.MontaResumoGasto(DAO_Commons.PrepareString(codigousuario), DAO_Commons.PrepareString(vencimento), DAO_Commons.PrepareString(intervaloMes))
+
+    End Function
+
+    <HttpGet>
+    Public Function getGastoServico(codigousuario As String, vencimento As String, tarifa As String, Optional intervaloMes As Integer = 0, Optional usuariocomum As String = "0") As Object
+        'Return New String() {"value1", "value2"}
+        'Return New String() {ConfigurationManager.ConnectionStrings("ConnectionString").ConnectionString}
+
+        Dim Authorization As String = HttpContext.Current.Request.Headers("SessionUsuario")
+
+        If String.IsNullOrEmpty(Authorization) Then
+            Return "Sem permissão de acesso"
+            'Throw New HttpResponseException(HttpStatusCode.NotFound)
+        End If
+
+        Return _dao.getTotalServico(DAO_Commons.PrepareString(codigousuario), DAO_Commons.PrepareString(vencimento), DAO_Commons.PrepareString(tarifa), DAO_Commons.PrepareString(intervaloMes), DAO_Commons.PrepareString(usuariocomum))
+
+    End Function
+
+
+    <HttpGet>
+    Public Function getUsuarios(codigousuario As String, Optional nome As String = "") As List(Of Items)
+        'Return New String() {"value1", "value2"}
+        'Return New String() {ConfigurationManager.ConnectionStrings("ConnectionString").ConnectionString}
+
+        Dim Authorization As String = HttpContext.Current.Request.Headers("SessionUsuario")
+
+        If String.IsNullOrEmpty(Authorization) Then
+            Return Nothing
+        End If
+
+        Dim _list As New List(Of Items)
+        codigousuario = DAO_Commons.PrepareString(codigousuario)
+
+        Dim sql As String = " select u.codigo, nvl(u.nome_usuario,'') nome "
+        sql += " from usuarios u where 1=1 "
+        'sql += " from usuarios u where 1=1 and upper(u.nome_usuario) like '" + nome.ToUpper + "%'" 
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + codigousuario & vbNewLine
+            sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(u.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+        'sql += " and (exists (select 0 from linhas l, linhas_moveis lm where l.codigo_linha=lm.codigo_linha and lm.codigo_usuario=u.codigo) "
+        'sql += " or exists (select 0 from linhas l where  l.codigo_usuario=u.codigo) or u.rml_numero_a is not null) "
+
+        sql += " order by  nome "
+        Dim dt As DataTable = _dao_commons.myDataTable(sql)
+
+        For Each _row As DataRow In dt.Rows
+            _list.Add(New Items(_row.Item("nome").ToString, _row.Item("codigo")))
+        Next
+
+        Return _list
+
+    End Function
+
+    <HttpGet>
+    Public Function getMediaMes(codigousuario As String, vencimento As String, tarifa As String, Optional intervaloMes As Integer = 0, Optional usuariocomum As String = "0") As Object
+        'Return New String() {"value1", "value2"}
+        'Return New String() {ConfigurationManager.ConnectionStrings("ConnectionString").ConnectionString}
+
+        Dim Authorization As String = HttpContext.Current.Request.Headers("SessionUsuario")
+
+        If String.IsNullOrEmpty(Authorization) Then
+            Return "Sem permissão de acesso"
+            'Throw New HttpResponseException(HttpStatusCode.NotFound)
+        End If
+
+        codigousuario = DAO_Commons.PrepareString(codigousuario)
+        vencimento = DAO_Commons.PrepareString(vencimento)
+        tarifa = DAO_Commons.PrepareString(tarifa)
+        intervaloMes = DAO_Commons.PrepareString(intervaloMes)
+        usuariocomum = DAO_Commons.PrepareString(usuariocomum)
+
+
+        Return _dao.getMediaMes(codigousuario, vencimento, tarifa, intervaloMes, usuariocomum)
+
+    End Function
+
+
+
+#Region "RAMAIS"
+    <HttpGet>
+    Public Function getDatasRamais(codigousuario As String) As List(Of Items)
+        'Return New String() {"value1", "value2"}
+        'Return New String() {ConfigurationManager.ConnectionStrings("ConnectionString").ConnectionString}
+        Dim _list As New List(Of Items)
+
+        Dim sql As String = " select to_char(p1.data_inicio,'MM/YYYY') data "
+        sql += " from cdrs p1 "
+        sql += " where p1.data_inicio>=sysdate-365 "
+        sql += " group by to_char(p1.data_inicio,'MM/YYYY') order by to_date(to_char(p1.data_inicio,'MM/YYYY'),'MM/YYYY') desc "
+        Dim dt As DataTable = _dao_commons.myDataTable(sql)
+
+        For Each _row As DataRow In dt.Rows
+            _list.Add(New Items(MonthName(_row.Item("data").Substring(0, 2), True) & _row.Item("data").Substring(2), _row.Item("data")))
+        Next
+
+        Return _list
+
+    End Function
+
+    <HttpGet>
+    Public Function getResumoGastoUsuarioRamal(codigousuario As String, vencimento As String, Optional intervaloMes As Integer = 0) As Object
+        'Return New String() {"value1", "value2"}
+        'Return New String() {ConfigurationManager.ConnectionStrings("ConnectionString").ConnectionString}
+        Dim Authorization As String = HttpContext.Current.Request.Headers("SessionUsuario")
+
+        'If String.IsNullOrEmpty(Authorization) Then
+        '    Return "Sem permissão de acesso"
+        '    'Throw New HttpResponseException(HttpStatusCode.NotFound)
+        'End If
+
+        Return _dao.MontaResumoGastoRamal(DAO_Commons.PrepareString(codigousuario), DAO_Commons.PrepareString(vencimento), DAO_Commons.PrepareString(intervaloMes))
+
+    End Function
+#End Region
+
+End Class

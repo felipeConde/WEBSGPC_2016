@@ -1,0 +1,418 @@
+﻿<%@ Master Language="VB" AutoEventWireup="true" CodeFile="Site.master.vb" Inherits="SiteMaster"  %>
+
+<!DOCTYPE html>
+
+<html lang="en">
+<head runat="server">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SGPC - GESTÃO DE TELECOM</title>
+
+   <%-- <asp:PlaceHolder runat="server">
+        <%: Scripts.Render("~/bundles/modernizr") %>
+    </asp:PlaceHolder>--%>
+<%--    <webopt:bundlereference runat="server" path="~/Content/css" />--%>
+
+   <!-- Vendor CSS -->
+        <link href="vendors/bower_components/animate.css/animate.min.css" rel="stylesheet">
+        <link href="vendors/bower_components/bootstrap-sweetalert/lib/sweet-alert.css" rel="stylesheet">
+        <link href="vendors/bower_components/material-design-iconic-font/dist/css/material-design-iconic-font.min.css" rel="stylesheet">
+        <link href="vendors/bower_components/malihu-custom-scrollbar-plugin/jquery.mCustomScrollbar.min.css" rel="stylesheet">        
+        <link href="vendors/bower_components/bootstrap-select/dist/css/bootstrap-select.css" rel="stylesheet">
+        <link href="vendors/bower_components/nouislider/distribute/jquery.nouislider.min.css" rel="stylesheet">
+        <link href="vendors/bower_components/eonasdan-bootstrap-datetimepicker/build/css/bootstrap-datetimepicker.min.css" rel="stylesheet">
+        <link href="vendors/farbtastic/farbtastic.css" rel="stylesheet">
+        <link href="vendors/bower_components/chosen/chosen.min.css" rel="stylesheet">
+        <link href="vendors/summernote/dist/summernote.css" rel="stylesheet">
+            
+        <!-- CSS -->
+        <link href="css/app.min.1.css" rel="stylesheet">
+        <link href="css/app.min.2.css" rel="stylesheet">
+
+    <link href="~/favicon.ico" rel="shortcut icon" type="image/x-icon" />
+
+  
+</head>
+<body>
+      <%=_googleAnalytics%>
+    <form runat="server">
+        <asp:ScriptManager runat="server">
+            <Scripts>
+                <%--To learn more about bundling scripts in ScriptManager see http://go.microsoft.com/fwlink/?LinkID=301884 --%>
+                <%--Framework Scripts--%>
+                <asp:ScriptReference Name="MsAjaxBundle" />
+                <asp:ScriptReference Name="jquery" />
+               <%-- <asp:ScriptReference Name="bootstrap" />--%>
+                <asp:ScriptReference Name="respond" />
+                <asp:ScriptReference Name="WebForms.js" Assembly="System.Web" Path="~/Scripts/WebForms/WebForms.js" />
+                <asp:ScriptReference Name="WebUIValidation.js" Assembly="System.Web" Path="~/Scripts/WebForms/WebUIValidation.js" />
+                <asp:ScriptReference Name="MenuStandards.js" Assembly="System.Web" Path="~/Scripts/WebForms/MenuStandards.js" />
+                <asp:ScriptReference Name="GridView.js" Assembly="System.Web" Path="~/Scripts/WebForms/GridView.js" />
+                <asp:ScriptReference Name="DetailsView.js" Assembly="System.Web" Path="~/Scripts/WebForms/DetailsView.js" />
+                <asp:ScriptReference Name="TreeView.js" Assembly="System.Web" Path="~/Scripts/WebForms/TreeView.js" />
+                <asp:ScriptReference Name="WebParts.js" Assembly="System.Web" Path="~/Scripts/WebForms/WebParts.js" />
+                <asp:ScriptReference Name="Focus.js" Assembly="System.Web" Path="~/Scripts/WebForms/Focus.js" />
+                <asp:ScriptReference Name="WebFormsBundle" />
+                <%--Site Scripts--%>
+            </Scripts>
+        </asp:ScriptManager>
+
+        <header id="header" class="clearfix" data-current-skin="blue">
+            <ul class="header-inner">
+                <li id="menu-trigger" data-trigger="#sidebar">
+                    <div class="line-wrap">
+                        <div class="line top"></div>
+                        <div class="line center"></div>
+                        <div class="line bottom"></div>
+                    </div>
+                </li>
+
+                <li class="logo hidden-xs">
+                    <a href="main.aspx">GESTÃO DE TELECOM</a>
+                </li>
+
+                <li class="pull-right">
+                    <ul class="top-menu" style="display:block;">
+                        <li id="toggle-width">
+                            <div class="toggle-switch">
+                                <input id="tw-switch" type="checkbox" hidden="hidden">
+                                <label for="tw-switch" class="ts-helper"></label>
+                            </div>
+                        </li>
+
+                        <li class="dropdown" runat="server" id="divAgenda" >
+                          <a data-toggle="dropdown" href="">
+                               <a href="<%=url_agenda %>" target="_blank"> <i class="tm-icon zmdi zmdi-account-box-phone" title="AGENDA CORPORATIVA"></i> </a>                                
+                            </a>
+                        </li>
+
+                        <li class="dropdown"  runat="server" id="divContato" >
+                            
+                            <a data-toggle="dropdown" href="">
+                               <a href="<%=url_tel_contato%>"> <i class="tm-icon zmdi zmdi-phone-msg" title="TELEFONES DE SUPORTE"></i> </a>
+                                
+                            </a>
+                            
+                        </li>
+
+                        <li class="dropdown" runat="server" visible="false" id="divAvisos" >
+                            <a data-toggle="dropdown" href="">
+                                <i class="tm-icon zmdi zmdi-notifications"></i>
+                                <i class="tmn-counts"><%=_totalAvisos %></i>
+                            </a>
+                            <div class="dropdown-menu dropdown-menu-lg pull-right">
+                                <div class="listview" id="notifications">
+                                    <div class="lv-header">
+                                        Notificações
+
+                                        <ul class="actions">
+                                            <li class="dropdown">
+                                                <a href="" data-clear="notification">
+                                                    <i class="zmdi zmdi-check-all"></i>
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    <div class="lv-body">
+                                        <%=_scriptAvisos %>
+                                    
+                                    </div>
+
+                                    <a class="lv-footer" href="">View Previous</a>
+                                </div>
+
+                            </div>
+                        </li>
+                      </ul>  
+                </li>
+            </ul>
+
+
+            <!-- Top Search Content -->
+            <div id="top-search-wrap">
+                <div class="tsw-inner">
+                    <i id="top-search-close" class="zmdi zmdi-arrow-left"></i>
+                    <input type="text">
+                </div>
+            </div>
+        </header>
+
+<!-- FIM HEADER -->
+
+
+        <section id="main" data-layout="layout-1">
+            <aside id="sidebar" class="sidebar c-overflow">
+                <div class="profile-menu">
+                    <a href="">
+                        <div class="profile-pic">
+                           <%-- <img src="img/profile-pics/10.png" alt="">--%>
+
+                            <asp:Image runat="server" ID="noImage" ImageUrl="img/profile-pics/10.png" />
+                            <asp:Image runat="server" ID="foto"  Visible="false" />
+                        </div>
+
+                        <div class="profile-info">
+                           <%=Session("usuario").Nome_Usuario %>
+                            <br />
+                             <%=Session("perfil") %>
+                           <%-- <i class="zmdi zmdi-caret-down"></i>--%>
+                        </div>
+                    </a>
+
+                    <ul class="main-menu" style="display:none"  >
+                        <li  style="display:none">
+                            <a href="profile-about.html"><i class="zmdi zmdi-account"></i> View Profile</a>
+                        </li>
+                        <li style="display:none">
+                            <a href=""><i class="zmdi zmdi-input-antenna" ></i> Privacy Settings</a>
+                        </li>
+                        <li  style="display:none">
+                            <a href=""><i class="zmdi zmdi-settings"></i> Settings</a>
+                        </li>
+                       <%-- <li>
+                            <a href="main.aspx?logout=S"><i class="zmdi zmdi-time-restore"></i> Sair</a>
+                            
+
+                          
+                        </li>--%>
+                    </ul>
+                </div>
+
+                <ul class="main-menu">
+                  <%--  <li class="active">
+                        <a href="main.aspx"><i class="zmdi zmdi-home"></i> Home</a>
+                    </li>--%>
+                   <%=strMenu %>
+
+                     <li>
+                         
+                         <a href="main.aspx?logout=S"><i class="zmdi zmdi-power zmdi-hc-fw"></i> Sair</a>                          
+                                               
+                        </li>
+
+                   
+                </ul>
+            </aside>
+            
+            <aside id="chat" class="sidebar c-overflow">
+            
+                <div class="chat-search">
+                    <div class="fg-line">
+                        <input type="text" class="form-control" placeholder="Search People">
+                    </div>
+                </div>
+
+                <div class="listview">
+                    <a class="lv-item" href="">
+                        <div class="media">
+                            <div class="pull-left p-relative">
+                                <img class="lv-img-sm" src="img/profile-pics/2.jpg" alt="">
+                                <i class="chat-status-busy"></i>
+                            </div>
+                            <div class="media-body">
+                                <div class="lv-title">Jonathan Morris</div>
+                                <small class="lv-small">Available</small>
+                            </div>
+                        </div>
+                    </a>
+
+                    <a class="lv-item" href="">
+                        <div class="media">
+                            <div class="pull-left">
+                                <img class="lv-img-sm" src="img/profile-pics/1.jpg" alt="">
+                            </div>
+                            <div class="media-body">
+                                <div class="lv-title">David Belle</div>
+                                <small class="lv-small">Last seen 3 hours ago</small>
+                            </div>
+                        </div>
+                    </a>
+
+                    <a class="lv-item" href="">
+                        <div class="media">
+                            <div class="pull-left p-relative">
+                                <img class="lv-img-sm" src="img/profile-pics/3.jpg" alt="">
+                                <i class="chat-status-online"></i>
+                            </div>
+                            <div class="media-body">
+                                <div class="lv-title">Fredric Mitchell Jr.</div>
+                                <small class="lv-small">Availble</small>
+                            </div>
+                        </div>
+                    </a>
+
+                    <a class="lv-item" href="">
+                        <div class="media">
+                            <div class="pull-left p-relative">
+                                <img class="lv-img-sm" src="img/profile-pics/4.jpg" alt="">
+                                <i class="chat-status-online"></i>
+                            </div>
+                            <div class="media-body">
+                                <div class="lv-title">Glenn Jecobs</div>
+                                <small class="lv-small">Availble</small>
+                            </div>
+                        </div>
+                    </a>
+
+                    <a class="lv-item" href="">
+                        <div class="media">
+                            <div class="pull-left">
+                                <img class="lv-img-sm" src="img/profile-pics/5.jpg" alt="">
+                            </div>
+                            <div class="media-body">
+                                <div class="lv-title">Bill Phillips</div>
+                                <small class="lv-small">Last seen 3 days ago</small>
+                            </div>
+                        </div>
+                    </a>
+
+                    <a class="lv-item" href="">
+                        <div class="media">
+                            <div class="pull-left">
+                                <img class="lv-img-sm" src="img/profile-pics/6.jpg" alt="">
+                            </div>
+                            <div class="media-body">
+                                <div class="lv-title">Wendy Mitchell</div>
+                                <small class="lv-small">Last seen 2 minutes ago</small>
+                            </div>
+                        </div>
+                    </a>
+                    <a class="lv-item" href="">
+                        <div class="media">
+                            <div class="pull-left p-relative">
+                                <img class="lv-img-sm" src="img/profile-pics/7.jpg" alt="">
+                                <i class="chat-status-busy"></i>
+                            </div>
+                            <div class="media-body">
+                                <div class="lv-title">Teena Bell Ann</div>
+                                <small class="lv-small">Busy</small>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </aside>
+            
+            
+            <section id="content">
+                <div class="container">
+               
+                      <asp:ContentPlaceHolder ID="MainContent" runat="server">
+                      </asp:ContentPlaceHolder>
+                </div>
+            </section>
+        </section>
+        
+        <footer id="footer">
+            Copyright  <p>&copy; <%: DateTime.Now.Year %> - SGPC TELECOM</p>
+            
+            <ul class="f-menu" style="display:none">
+                <li><a href="">Home</a></li>
+                <li><a href="">Dashboard</a></li>
+                <li><a href="">Reports</a></li>
+                <li><a href="">Support</a></li>
+                <li><a href="">Contact</a></li>
+            </ul>
+        </footer>
+
+        <!-- Page Loader -->
+        <div class="page-loader">
+            <div class="preloader pls-blue">
+                <svg class="pl-circular" viewBox="25 25 50 50">
+                    <circle class="plc-path" cx="50" cy="50" r="20" />
+                </svg>
+
+                <p>Please wait...</p>
+            </div>
+        </div>
+        
+         <!-- Javascript Libraries -->
+       <%-- <script src="vendors/bower_components/jquery/dist/jquery.min.js"></script>--%>
+         <%--<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.2/jquery.min.js"></script>--%>
+        <script src="Scripts/jquery_222/jquery-2.2.2.min.js"></script>
+        <script src="vendors/bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
+        
+        <script src="vendors/bower_components/flot/jquery.flot.js"></script>
+        <script src="vendors/bower_components/flot/jquery.flot.resize.js"></script>
+        <script src="vendors/bower_components/flot.curvedlines/curvedLines.js"></script>
+        <script src="vendors/sparklines/jquery.sparkline.min.js"></script>
+        <script src="vendors/bower_components/jquery.easy-pie-chart/dist/jquery.easypiechart.min.js"></script>
+        
+        <script src="vendors/bower_components/moment/min/moment.min.js"></script>
+        <script src="vendors/bower_components/fullcalendar/dist/fullcalendar.min.js "></script>
+        <script src="vendors/bower_components/simpleWeather/jquery.simpleWeather.min.js"></script>
+        <script src="vendors/bower_components/Waves/dist/waves.min.js"></script>
+        <script src="vendors/bootstrap-growl/bootstrap-growl.min.js"></script>
+        <script src="vendors/bower_components/bootstrap-sweetalert/lib/sweet-alert.js"></script>
+        <script src="vendors/bower_components/malihu-custom-scrollbar-plugin/jquery.mCustomScrollbar.concat.min.js"></script>
+        
+        <%--<script src="js/jquery.bootgrid-1.3.1/jquery.bootgrid.js"></script>--%>
+        <script src="vendors/bootgrid/jquery.bootgrid.js"></script>
+        <%--<script src="vendors/bootgrid/jquery.bootgrid.min.js"></script>--%>
+        <script src="vendors/bootgrid/jquery.bootgrid.updated.js"></script>
+         <script src="vendors/bower_components/chosen_angular/chosen.jquery.js" async=""></script>       
+        
+
+        <script src="vendors/bower_components/typeahead.js/dist/typeahead.jquery.js"></script>
+        <script src="vendors/bower_components/typeahead.js/dist/bloodhound.js"></script>
+        <!-- Placeholder for IE9 -->
+        <!--[if IE 9 ]>
+            <script src="vendors/bower_components/jquery-placeholder/jquery.placeholder.min.js"></script>
+        <![endif]-->
+
+        <script src="vendors/bower_components/chosen/chosen.jquery.min.js"></script>
+        <script src="vendors/fileinput/fileinput.min.js"></script>
+        <script src="vendors/input-mask/input-mask.min.js"></script>
+        <script src="vendors/farbtastic/farbtastic.min.js"></script>
+
+          <!-- JQGRID -->
+   <%--     <script src="js/JqGrid/js/jquery.jqGrid.min.js"></script>
+        
+        <script src="js/flot-charts/curved-line-chart.js"></script>
+        <script src="js/flot-charts/line-chart.js"></script>--%>
+      
+
+         <!-- Highcharts -->
+     <%--    <script src="Highcharts-4.1.9/js/highcharts.js"></script>
+        <script src="Highcharts-4.1.9/js/highcharts-3d.js"></script>
+        <script src="Highcharts-4.1.9/js/modules/exporting.js"></script>--%>
+
+        <%--<script src="https://code.highcharts.com/highcharts.js"></script>
+        <script src="https://code.highcharts.com/modules/exporting.js"></script>--%>
+
+        <script src="Highcharts-4.2.5/js/highcharts.js"></script>
+        <script src="Highcharts-4.2.5/js/highcharts-3d.js"></script>
+        <script src="Highcharts-4.2.5//js/modules/exporting.js">
+
+        <script src="js/charts.js"></script>
+        <script src="js/functions.js"></script>
+        <%--<script src="js/demo.js"></script>--%>
+
+        <script src="js/JqGrid/js/jquery.jqGrid.min.js" type="text/javascript"></script>
+       <script  src="js/JqGrid/src/jquery.fmatter.js" type="text/javascript"></script>
+       <script  src="js/JqGrid/src/grid.formedit.js" type="text/javascript"></script>
+       <script  src="js/JqGrid/src/grid.subgrid.js" type="text/javascript"></script>
+       <script  src="js/JqGrid/js/i18n/grid.locale-pt-br.js" type="text/javascript"></script>
+       <script src="js/JqGrid/jQuery.jqGrid.columnChooser.js" type="text/javascript"></script>
+       <script src="js/JqGrid/jQuery.jqGrid.setColWidth.js" type="text/javascript"></script>
+       <script src="js/JqGrid/jQuery.jqGrid.autoWidthColumns.js" type="text/javascript"></script>
+
+        
+
+          <asp:ContentPlaceHolder ID="FooterPlaceHolder1" runat="server">
+
+
+              <script>
+
+                  $('.sub-menu').click(function (e) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      //alert('teste;');
+                      return false;
+                  });
+
+              </script>
+          </asp:ContentPlaceHolder>
+    </form>
+</body>
+
+</html>

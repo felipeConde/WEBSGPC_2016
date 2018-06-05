@@ -1,0 +1,243 @@
+﻿Imports System.Data
+Imports System.Data.OleDb
+Imports System.Globalization
+Imports System.IO
+Imports ClosedXML.Excel
+
+Partial Class gestaoRel_ConsumoRamaisResult
+    Inherits System.Web.UI.Page
+
+    Dim strConexao As String = ""
+    Dim strSQL As String = ""
+    Dim ramal As String = ""
+    Dim dataini As String = ""
+    Dim datafim As String = ""
+    Public nome_mes As String = ""
+    Public mes As String = ""
+    Public ano As String = ""
+    Public _TotalRows As Integer
+    Public _TotalParticular As Double = 0.0
+    Dim _dao As New DAO_Commons
+    Dim tipo As String = ""
+    Private total_valor As Decimal
+    Dim label_codigo_ar As String = ""
+    Dim label_nome_ar As String = ""
+    Dim email As String = ""
+    Dim grupo As String = ""
+
+    Private Sub gestaoRel_ConsumoLinhasResult_Load(sender As Object, e As EventArgs) Handles Me.Load
+
+
+        email = Request.QueryString("email")
+        If Session("conexao") Is Nothing And email <> "1" Then
+            Response.Write("conecte novamente")
+            Response.End()
+        ElseIf email = "1" Then
+            'envio de email
+            strConexao = ConfigurationManager.ConnectionStrings("ConnectionString").ConnectionString
+            _dao.strConn = strConexao
+            Session("conexao") = strConexao
+        Else
+            strConexao = Session("conexao")
+            _dao.strConn = Session("conexao")
+        End If
+
+
+        'Response.Write(CultureInfo.CurrentCulture.Name)
+        'Response.End()
+
+        If Not Page.IsPostBack Then
+
+
+            ramal = Request.QueryString("ramal")
+            dataini = Request.QueryString("dataini")
+            datafim = Request.QueryString("datafim")
+            mes = Request.QueryString("mes")
+            ano = Request.QueryString("ano")
+            tipo = Request.QueryString("tipo")
+            grupo = Request.QueryString("grupo")
+
+            label_codigo_ar = _dao.getLabel("NOME_CCUSTO")
+            label_nome_ar = "NOME " & _dao.getLabel("NOME_CCUSTO")
+
+            If mes = "" Or ano = "" Then
+                Response.Write("Infome o mês e ano!")
+                Response.End()
+            End If
+
+            If email = "1" Then
+                Dim wrapper As New Encrypt("clperi")
+
+                'vamos criptografar para testes
+                'celular = wrapper.EncryptData(celular)
+                'mes = wrapper.EncryptData(mes)
+                'ano = wrapper.EncryptData(ano)
+                'Session("codigousuario") = wrapper.EncryptData(Request.QueryString("codigousuario"))
+
+                'vamos descriptografar
+                Session("codigousuario") = Request.QueryString("codigousuario")
+
+                'celular = wrapper.DecryptData(celular.Replace(" ", "+"))
+                mes = wrapper.DecryptData(mes.Replace(" ", "+"))
+                ano = wrapper.DecryptData(ano.Replace(" ", "+"))
+                grupo = wrapper.DecryptData(grupo.Replace(" ", "+"))
+                Session("codigousuario") = wrapper.DecryptData(Session("codigousuario").Replace(" ", "+"))
+                tipo = "HTML"
+
+
+            End If
+            nome_mes = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(mes)
+            Dim ti As TextInfo = CultureInfo.CurrentCulture.TextInfo
+            nome_mes = ti.ToTitleCase(nome_mes)
+            lbdatenow.Text = Date.Now
+            MontaQuery()
+
+        End If
+
+    End Sub
+
+    Private Sub MontaQuery()
+
+        Dim sql As String = ""
+
+        sql = sql + " Select "
+        sql = sql + " p1.grupo """ & label_codigo_ar & """, g.nome_grupo """ & label_nome_ar & """ , u.nome_usuario usuario,GET_OCULTA_NUMLINHA(p1.ramal) ramal,to_char(sum(p1.gasto)+max(p1.custo_servico)) servico,to_char(max(p1.custo_ramal)) aparelho,to_char(sum(p1.gasto)+max(p1.custo_ramal)+max(p1.custo_servico)) gasto "
+        sql = sql + " from V_TARIFACAO p1, grupos g,usuarios u,RAMAIS R "
+        sql = sql + " where p1.grupo = g.codigo(+) And p1.codigo_usuario = u.codigo(+) And p1.ramal = R.NUMERO_A(+) "
+        ' sql = sql + " and p1.gasto_total>0 "
+
+        'sql = sql + " and lm.codigo_usuario(+) = p1.codigo_usuario"
+        sql = sql + " and  p1.data ='" & mes & "/" & ano & "'    "
+
+        If grupo <> "" Then
+            sql = sql + "     and to_char(p1.grupo) like '" & grupo & "%' " & vbNewLine
+        End If
+
+        If Not DALCGestor.AcessoAdmin() Then
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and (exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario cat" & vbNewLine
+            sql = sql + "     where cat.codigo_usuario=" + Trim(Session("codigousuario")) & vbNewLine
+            sql = sql + "     and to_char(p1.grupo) like cat.codigo_grupo||'%' ) " & vbNewLine
+            sql = sql + ")"
+
+        End If
+
+
+        sql = sql + "   group by to_date(p1.data, 'MM/YYYY'),p1.ramal,p1.grupo,g.nome_grupo,u.nome_usuario"
+        sql = sql + "  order by p1.grupo, u.nome_usuario"
+
+
+        'Response.Write(sql)
+        'Response.End()
+
+
+        Dim dt As DataTable = _dao.myDataTable(sql)
+        Dim _rowTotal As DataRow = dt.NewRow
+        _rowTotal.Item(0) = "Total"
+        _rowTotal.Item("gasto") = 0
+        _rowTotal.Item("servico") = 0
+        _rowTotal.Item("aparelho") = 0
+
+
+        For Each _row As DataRow In dt.Rows
+            _rowTotal("gasto") += Convert.ToDouble(_row("gasto").ToString.Replace(",", "").Replace(".", ","))
+            _rowTotal("servico") += Convert.ToDouble(_row("servico").ToString.Replace(",", "").Replace(".", ","))
+            _rowTotal("aparelho") += Convert.ToDouble(_row("aparelho").ToString.Replace(",", "").Replace(".", ","))
+
+
+            _row("gasto") = FormatCurrency(_row("gasto").ToString.Replace(",", "").Replace(".", ","))
+            _row("servico") = FormatCurrency(_row("servico").ToString.Replace(",", "").Replace(".", ","))
+            _row("aparelho") = FormatCurrency(_row("aparelho").ToString.Replace(",", "").Replace(".", ","))
+            '_row(3) = FormatCurrency(_row(3).ToString.Replace(",", "").Replace(".", ","))
+        Next
+
+
+        _rowTotal("gasto") = FormatCurrency(_rowTotal("gasto"))
+        _rowTotal("servico") = FormatCurrency(_rowTotal("servico"))
+        _rowTotal("aparelho") = FormatCurrency(_rowTotal("aparelho"))
+        dt.Rows.Add(_rowTotal)
+
+        Me.gvRel.DataSource = dt
+        Me.gvRel.DataBind()
+
+
+
+        If tipo.ToUpper = "EXCEL" Then
+            Dim wb As New XLWorkbook()
+
+
+            'Dim dt2 As New DataTable("Consumo Linhas ")
+            'For z As Integer = 0 To gvRel.Columns.Count - 1
+            '    dt2.Columns.Add(gvRel.Columns(z).HeaderText)
+            'Next
+
+            'For Each row As GridViewRow In gvRel.Rows
+            '    dt2.Rows.Add()
+            '    For c As Integer = 0 To row.Cells.Count - 1
+            '        dt2.Rows(dt2.Rows.Count - 1)(c) = Server.HtmlDecode(row.Cells(c).Text.Replace("&nbsp;", ""))
+            '    Next
+            'Next
+
+            'dt2.Rows.Add()
+            'For c As Integer = 0 To gvRel.FooterRow.Cells.Count
+            '    Try
+            '        dt2.Rows(dt.Rows.Count - 1)(c) = gvRel.FooterRow.Cells(c).Text.Replace("&nbsp;", "")
+            '    Catch ex As Exception
+
+            '    End Try
+            'Next
+
+            wb.Worksheets.Add(dt)
+
+            gvRel.AllowPaging = True
+
+            Response.Clear()
+            Response.Buffer = True
+            Response.Charset = ""
+            Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            Response.AddHeader("content-disposition", "attachment;filename=RelConsumo_" & mes & "_" & ano & ".xlsx")
+            Response.Charset = "ISO-8859-1"
+            Using MyMemoryStream As New MemoryStream()
+                wb.SaveAs(MyMemoryStream)
+                MyMemoryStream.WriteTo(Response.OutputStream)
+                Response.Flush()
+                Response.[End]()
+            End Using
+
+        End If
+        If gvRel.Rows.Count > 0 Then
+            gvRel.Rows(gvRel.Rows.Count - 1).CssClass = "active"
+            gvRel.Rows(gvRel.Rows.Count - 1).Style.Add("font-weight", "bold")
+
+
+            gvRel.HeaderRow.TableSection = TableRowSection.TableHeader
+            'gvRel.FooterRow.TableSection = TableRowSection.TableFooter
+
+
+        End If
+
+
+
+        'ClientScript.RegisterClientScriptBlock(Me.GetType(), "Open", "<script>printPDF();</script>")
+
+
+
+
+    End Sub
+    Protected Sub gvRel_SelectedIndexChanged(sender As Object, e As EventArgs) Handles gvRel.SelectedIndexChanged
+
+    End Sub
+
+    Private Sub gestaoRel_ConsumoRamaisResult_PreRenderComplete(sender As Object, e As EventArgs) Handles Me.PreRenderComplete
+
+        'ClientScript.RegisterClientScriptBlock(Me.GetType(), "Open", "<script>demoFromHTML();</script>")
+
+
+        'Response.Write("<script>printPDF();</script>")
+    End Sub
+
+    Private Sub gestaoRel_ConsumoRamaisResult_LoadComplete(sender As Object, e As EventArgs) Handles Me.LoadComplete
+        'ClientScript.RegisterClientScriptBlock(Me.GetType(), "Open", "<script>printPDF();</script>")
+    End Sub
+End Class

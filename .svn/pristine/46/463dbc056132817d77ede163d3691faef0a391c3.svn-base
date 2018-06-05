@@ -1,0 +1,36 @@
+<%@ Page Title="" Language="VB" MasterPageFile="~/Cadastros.master" AutoEventWireup="false" CodeFile="gestaoRel_ConsumoLinhasResult.aspx.vb" Inherits="gestaoRel_ConsumoLinhasResult" %>
+
+<asp:Content ID="Content1" ContentPlaceHolderID="MainContent" runat="Server">       
+                <br />
+                <div class="">
+                    <h1>
+                        <asp:Label ID="lbUsuarioTop" runat="server" Text=""></asp:Label></h1>
+                    <h4 style="text-transform: none; font-weight: 300">Relatório de Consumo de Linhas: <%= nome_mes %>/<%= ano.Trim%></h4>
+                </div>
+                <br />
+                
+               
+                <div class="card">
+                    <div class="card-body card-padding">
+                    <div class="table-responsive">
+                      
+                        <asp:GridView ID="gvRel"  BorderWidth="0"  runat="server" ShowFooter="FALSE"
+                            CssClass="table table-striped"  AutoGenerateColumns="true" EnableModelValidation="True">
+                            <FooterStyle CssClass="active" />
+                           
+                        </asp:GridView>
+
+                 
+                    </div>
+                        </div>
+                </div>
+                <br />
+                © CL Consultoria
+                 <br />
+                Relatorio impresso em
+        <asp:Label ID="lbdatenow" runat="server"></asp:Label>
+      
+  
+</asp:Content>
+
+

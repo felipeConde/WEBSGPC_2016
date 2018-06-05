@@ -1,0 +1,48 @@
+﻿<%@ Page Title="" Language="VB" MasterPageFile="~/Site.master" AutoEventWireup="false" CodeFile="formularios_normas.aspx.vb" Inherits="formularios_normas" %>
+
+<asp:Content ID="Content1" ContentPlaceHolderID="MainContent" Runat="Server">
+     <div class="block-header">
+
+            <h2>FORMULÁRIOS E NORMAS</h2>
+           Preencha o formulário, imprima, assine e envie ao responsável.
+    </div>
+
+      <div class="card">
+
+        <div class="card-body card-padding">
+            <div class="row">
+               <%-- <a href="arquivos/Formulario%20de%20Migração%20v4.docx"  target='_blank'>               
+                <h4>Formulário de Migração</h4>
+                    Formulário de migração de serviços de comunicação móvel.
+                </a>
+                <br /><br />--%>
+                <a href="arquivos/Formulario%20de%20Solicitação%20v5.docx" target='_blank'>               
+                <h4>Formulário de Solicitação</h4>
+                    Formulário de solicitação de serviços de comunicação móvel.
+                </a>
+                <br /><br />
+                <a href="arquivos/Formulário%20de%20Cancelamento.docx"  target='_blank'>                
+                <h4>Formulário de Cancelamento</h4>
+                    Formulário de cancelamento de serviços de comunicação móvel.
+                </a>
+                <br /><br />
+                <a href='arquivos/NormaConcessao.pdf' target='_blank' >
+                <h4>Norma de Comunicação Móvel</h4>
+                    Formulário para concessão de serviços de comunicação móvel.
+                </a>
+                <br /><br/>
+                <a href="arquivos/Termo de responsabilidade_PIT.docx" target="_blank">  <h4>Termo de Responsabilidade do PIT</h4>
+                    Formulário de termo de responsabilidade.
+                </a> <br />
+
+
+
+            </div>
+        </div>
+        </div>
+</asp:Content>
+
+<asp:Content ID="Content2" ContentPlaceHolderID="FooterPlaceHolder1" Runat="Server">
+     
+
+    </asp:Content>

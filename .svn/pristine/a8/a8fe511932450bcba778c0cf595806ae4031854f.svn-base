@@ -1,0 +1,636 @@
+﻿Imports System.Data
+Imports System.Data.OleDb
+Imports System.Globalization
+Imports System.IO
+Imports ClosedXML.Excel
+
+Partial Class GestaoRel_ExtratoRamalResult
+    Inherits System.Web.UI.Page
+
+    Dim strConexao As String = ""
+    Dim strSQL As String = ""
+    Public ramal As String = ""
+    Public dataini As String = ""
+    Public datafim As String = ""
+    Dim _editParticulares As Boolean = False
+    Dim _diaApontamento As String = "5"
+    Dim _dataLimiteApontamento As Date
+    Public _TotalRows As Integer
+    Public _TotalParticular As Double = 0.0
+    Dim _dao As New DAORamais
+    Dim tipoRel As String = ""
+    Private total_valor As Decimal
+    Private total_chamadas As Integer
+    Private total_duracao As Decimal
+    Private total_valor_resumo As Decimal
+    Private total_qtd_resumo As Decimal
+    Private total_duracao_resumo As Decimal
+    Dim _dao_commons As New DAO_Commons
+    Dim rotas_particulares As String = "88,22"
+    Dim email As String = ""
+    Public nome_mes As String = ""
+    Public mes As String = ""
+    Public ano As String = ""
+
+    Protected Sub Page_Load(ByVal sender As Object, ByVal e As System.EventArgs) Handles Me.Load
+
+        'pega as sessions do asp 3.0
+        'GetSessions()
+        email = Request.QueryString("email")
+
+        If Session("conexao") Is Nothing And email <> "1" Then
+            Response.Write("conecte novamente")
+            Response.End()
+        ElseIf email = "1" Then
+            'envio de email
+            strConexao = ConfigurationManager.ConnectionStrings("ConnectionString").ConnectionString
+            _dao.strConn = strConexao
+            _dao_commons.strConn = strConexao
+            Session("conexao") = strConexao
+
+        Else
+            strConexao = Session("conexao")
+            _dao.strConn = Session("conexao")
+            _dao_commons.strConn = Session("conexao")
+        End If
+
+        If Not Page.IsPostBack Then
+
+            mes = Request.QueryString("mes")
+            ano = Request.QueryString("ano")
+
+            ramal = Request.QueryString("ramal")
+            dataini = "01" & "/" & Request.QueryString("mes") & "/" & Request.QueryString("ano")
+            datafim = Date.DaysInMonth(Request.QueryString("ano"), Request.QueryString("mes")) & "/" & Request.QueryString("mes") & "/" & Request.QueryString("ano")
+            tipoRel = Request.QueryString("tipo")
+
+            If email = "1" Then
+                Dim wrapper As New Encrypt("clperi")
+
+                'vamos criptografar para testes
+                'ramal = wrapper.EncryptData(ramal)
+                'dataini = wrapper.EncryptData(dataini)
+                'datafim = wrapper.EncryptData(datafim)
+                'Session("codigousuario") = wrapper.EncryptData(Request.QueryString("codigousuario"))
+
+                'vamos descriptografar
+                Session("codigousuario") = Request.QueryString("codigousuario")
+
+                ramal = wrapper.DecryptData(ramal.Replace(" ", "+"))
+                dataini = wrapper.DecryptData(dataini.Replace(" ", "+"))
+                datafim = wrapper.DecryptData(datafim.Replace(" ", "+"))
+                Session("codigousuario") = wrapper.DecryptData(Session("codigousuario").Replace(" ", "+"))
+                tipoRel = "HTML"
+
+
+            End If
+            nome_mes = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(mes)
+            Dim ti As TextInfo = CultureInfo.CurrentCulture.TextInfo
+            nome_mes = ti.ToTitleCase(nome_mes)
+
+            MontaQuery()
+            MontaCabecalho()
+            MontaResumo()
+            VerificaParticulares()
+
+            If tipoRel.ToUpper = "EXCEL" Then
+                If tipoRel.ToUpper = "EXCEL" Then
+                    'Response.ContentType = "application/vnd.ms-excel"
+                    'Response.AddHeader("content-disposition", "attachment;filename=ExtratoRamal_" & ramal & "_" & dataini & "_" & datafim & ".xls")
+                    'Response.ContentEncoding = System.Text.Encoding.GetEncoding("Windows-1252")
+                    'Response.Charset = "ISO-8859-1"
+                    'EnableViewState = False
+
+                    'Response.Write("<style> td{text-align: right;mso-number-format: \@;white-space: nowrap;} </style>")
+
+
+                    Dim wb As New XLWorkbook()
+
+
+                    Dim dt As New DataTable("Resumo")
+                    For z As Integer = 0 To GvResumo.Columns.Count - 1
+                        dt.Columns.Add(GvResumo.Columns(z).HeaderText)
+                    Next
+
+                    For Each row As GridViewRow In GvResumo.Rows
+                        dt.Rows.Add()
+                        For c As Integer = 0 To row.Cells.Count - 1
+                            dt.Rows(dt.Rows.Count - 1)(c) = row.Cells(c).Text.Replace("&nbsp;", "")
+                        Next
+                    Next
+
+                    wb.Worksheets.Add(dt)
+
+                    GvResumo.AllowPaging = True
+
+                    Dim dt2 As New DataTable("Extrato")
+                    For z As Integer = 0 To gvExtrato.Columns.Count - 1
+                        dt2.Columns.Add(gvExtrato.Columns(z).HeaderText)
+                    Next
+
+                    For Each row As GridViewRow In gvExtrato.Rows
+                        dt2.Rows.Add()
+                        For c As Integer = 0 To row.Cells.Count - 1
+                            dt2.Rows(dt2.Rows.Count - 1)(c) = row.Cells(c).Text.Replace("&nbsp;", "")
+                        Next
+                    Next
+
+                    wb.Worksheets.Add(dt2)
+
+                    gvExtrato.AllowPaging = True
+
+                    Dim dt3 As New DataTable("Totais")
+                    For z As Integer = 0 To GvTotais.Columns.Count - 1
+                        dt3.Columns.Add(GvTotais.Columns(z).HeaderText)
+                    Next
+
+                    For Each row As GridViewRow In GvTotais.Rows
+                        dt3.Rows.Add()
+                        For c As Integer = 0 To row.Cells.Count - 1
+                            dt3.Rows(dt3.Rows.Count - 1)(c) = row.Cells(c).Text.Replace("&nbsp;", "")
+                        Next
+                    Next
+
+                    wb.Worksheets.Add(dt3)
+
+                    GvTotais.AllowPaging = True
+
+
+                    Response.Clear()
+                    Response.Buffer = True
+                    Response.Charset = "ISO-8859-1"
+                    Response.ContentEncoding = System.Text.Encoding.GetEncoding("Windows-1252")
+                    Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    Response.AddHeader("content-disposition", "attachment;filename=ExtratoRamal_" & ramal & "_" & dataini & "_" & datafim & ".xlsx")
+
+
+                    Using MyMemoryStream As New MemoryStream()
+                        wb.SaveAs(MyMemoryStream)
+                        MyMemoryStream.WriteTo(Response.OutputStream)
+                        Response.Flush()
+                        Response.[End]()
+                    End Using
+                End If
+            End If
+
+            If _editParticulares = False Then
+                Me.gvExtrato.Columns(8).Visible = False
+                lbParticulares.Visible = False
+            End If
+
+        End If
+
+        lbdatenow.Text = DateTime.Now
+
+    End Sub
+
+    Private Sub MontaQuery()
+
+        '///////QUERY DO GRID/////////////////////////////////
+
+        Dim cod_user As Integer = Session("codigousuario")
+        Dim Sql As String = ""
+        Sql = ""
+        Sql = Sql + "   select"
+        Sql = Sql + "	p1.codigo, "
+        Sql = Sql + "   p1.rml_numero_a ramal,"
+        Sql = Sql + "   nvl(p1.RML_FISICO,' ') fisico,nvl(origem,'SEM INFO')origem,codigo_tipo_ligacao tipo,"
+        Sql = Sql + "   p2.nome_configuracao categoria,"
+        Sql = Sql + "   p1.numero_b numero,"
+        'sql=sql+"   TO_CHAR(p1.data_inicio,'DD/MM/YYYY HH24:MI:SS') dataini, "
+        Sql = Sql + "   p1.data_inicio dataini, "
+        Sql = Sql + "   p1.data_fim datafim, "
+        Sql = Sql + "   nvl(p1.route,'[NULO]') rota, "
+        If AppIni.Sulamerica_Param = True Then
+            Sql = Sql + "   nvl(ROUND((p1.data_fim-p1.data_inicio)*(1440)*60,2),0) duracao,"
+            Sql = Sql + " case when p1.autor_apontamento is null and lp.num_linha is not null then 'true' else decode(nvl(particular, 'N'), 'S', 'true', 'N', 'false') end particular "
+            Sql = Sql + " ,case when p1.autor_apontamento is not null  THEN 'true' ELSE 'false'END marcou_particular,"
+        Else
+            Sql = Sql + "   nvl(ROUND((p1.data_fim-p1.data_inicio)*(1440),2),0) duracao,"
+            'Sql += " decode(nvl(particular,'N'),'S','true','N','false')particular,"
+            Sql = Sql + " case when p1.autor_apontamento is null and lp.num_linha is not null then 'true' else decode(nvl(particular, 'N'), 'S', 'true', 'N', 'false') end particular "
+            Sql = Sql + " ,case when p1.autor_apontamento is not null  THEN 'true' ELSE 'false'END marcou_particular,"
+        End If
+        Sql = Sql + "   nvl(p1.valor_cdr,0) valor,"
+        Sql = Sql + "   nvl(faturado,'0')faturado"
+        Sql = Sql + "   from cdrs p1,tarifacao p2, linhas_particulares lp "
+        Sql = Sql + "   where p1.tarif_codigo=p2.codigo"
+        Sql = Sql + "   and p1.rml_numero_a='" + ramal.Trim + "'"
+        Sql += " and p1.rml_numero_a=lp.num_linha(+) and p1.numero_b=lp.num_chamado(+) "
+        Sql = Sql + "   and p1.data_inicio>=to_date('" + dataini + " 00:00:00','DD/MM/YYYY HH24:MI:SS')"
+        Sql = Sql + "   and p1.data_inicio<=to_date('" + datafim + " 23:59:59','DD/MM/YYYY HH24:MI:SS')"
+        If Session("ramal_ext_tarf") <> "" Then
+            Sql = Sql + "     and p1.tarif_codigo in (" & Session("ramal_ext_tarf") & ") "
+        End If
+        'somente com ccusto
+        'Sql = Sql + " and p1.grp_codigo is not null "
+
+
+        If Not DALCGestor.AcessoAdmin() Then
+            'não filtra o centro de custo dos gerentes
+            Sql = Sql + " and (exists(" & vbNewLine
+            Sql = Sql + "   select 0 from categoria_usuario cat" & vbNewLine
+            Sql = Sql + "     where cat.codigo_usuario=" + Trim(cod_user) & vbNewLine
+            Sql = Sql + "     and to_char(p1.grp_codigo) like cat.codigo_grupo||'%' ) " & vbNewLine
+
+            'usuário comum
+            Sql = Sql + "  or exists( select rml_numero_a from usuarios where upper(nome_usuario) in(select upper(nome_usuario) from usuarios where codigo='" + Trim(cod_user) + "')"
+            Sql = Sql + "     and p1.rml_numero_a = '" + ramal.Trim + "')"
+            Sql = Sql + ")"
+
+        End If
+        Sql = Sql + " order by p1.data_inicio  "
+
+        'Response.Write(Sql)
+        'Response.End()
+
+
+        Dim connection As New OleDbConnection(strConexao)
+
+        Dim cmd As OleDbCommand = connection.CreateCommand
+        cmd.CommandText = Sql
+        Dim reader As OleDbDataReader
+        connection.Open()
+        reader = cmd.ExecuteReader
+
+        If Not reader.HasRows Then
+
+            'não tem extrato no mês
+            ClientScript.RegisterClientScriptBlock(Me.GetType(), "resultscript", "<script>alert('Nenhum registro encontrado.');window.close();</script>")
+
+
+        End If
+
+
+        Me.gvExtrato.DataSource = reader
+        Me.gvExtrato.DataBind()
+        _TotalRows = Me.gvExtrato.Rows.Count - 2
+
+        Try
+            If _dao_commons.GetGenericList("FORMATA_NUMERO_B_EXTRATO", "NOME_PARAMETRO", "VALOR_PARAMETRO", "PARAMETROS_SGPC").Item(0).Descricao = "S" Then
+                For Each row As GridViewRow In gvExtrato.Rows
+                    row.Cells(3).Text = _dao_commons.ReturnoNumeroFormatado(row.Cells(3).Text)
+                Next
+            End If
+        Catch ex As Exception
+
+        End Try
+
+
+
+        reader.Close()
+        reader = Nothing
+
+        '///////FIM QUERY DO GRID/////////////////////////////////
+
+
+    End Sub
+
+    Sub MontaCabecalho()
+        Dim cod_user As Integer = Session("codigousuario")
+        Dim Sql As String = ""
+        Sql = ""
+        Sql = Sql + "   select"
+        Sql = Sql + "	u.codigo, "
+        Sql = Sql + "   nvl(u.nome_usuario,'SEM CADASTRO')nome_usuario,"
+        Sql = Sql + "   nvl(p2.nome_grupo,'SEM CADASTRO')grupo "
+        Sql = Sql + "   from cdrs p1,usuarios u, grupos p2 where p1.grp_codigo=p2.codigo(+) and p1.codigo_usuario=u.codigo"
+        Sql = Sql + "   and p1.rml_numero_a='" + ramal + "'"
+        Sql = Sql + "     and p1.data_inicio>=to_date('" + dataini + " 00:00:00','DD/MM/YYYY HH24:MI:SS')"
+        Sql = Sql + "     and p1.data_inicio<=to_date('" + datafim + " 23:59:59','DD/MM/YYYY HH24:MI:SS') and rownum<2"
+
+        'Response.Write(Sql)
+        'Response.End()
+
+        Dim connection As New OleDbConnection(strConexao)
+
+        Dim cmd As OleDbCommand = connection.CreateCommand
+        cmd.CommandText = Sql
+        Dim reader As OleDbDataReader
+        connection.Open()
+        reader = cmd.ExecuteReader
+
+        Using connection
+
+            While reader.Read
+
+                Me.lbGrupo.Text = reader.Item("grupo").ToString
+                Me.lbUsuario.Text = reader.Item("nome_usuario").ToString
+                Me.lbUsuarioTop.Text = reader.Item("nome_usuario").ToString
+
+            End While
+
+        End Using
+    End Sub
+
+    Sub MontaResumo()
+        Dim cod_user As Integer = Session("codigousuario")
+        Dim Sql As String = ""
+        Sql = Sql + " select"
+        Sql = Sql + "     p2.nome_configuracao categoria,"
+        Sql = Sql + "     count(*) qtd,sum(p1.valor_cdr)valor, sum((p1.data_fim-p1.data_inicio)*1440) duracao "
+        Sql = Sql + "     from cdrs p1,tarifacao p2"
+        Sql = Sql + "     where p1.tarif_codigo=p2.codigo "
+        Sql = Sql + "     and p1.rml_numero_a='" + ramal + "'"
+        Sql = Sql + "     and p1.data_inicio>=to_date('" + dataini + " 00:00:00','DD/MM/YYYY HH24:MI:SS')"
+        Sql = Sql + "     and p1.data_inicio<=to_date('" + datafim + " 23:59:59','DD/MM/YYYY HH24:MI:SS')"
+        If Session("ramal_ext_tarf") <> "" Then
+            Sql = Sql + "     and p1.tarif_codigo in (" & Session("ramal_ext_tarf") & ") "
+        End If
+        'Sql = Sql + " and p1.grp_codigo is not null "
+
+        If Not DALCGestor.AcessoAdmin() Then
+            'não filtra o centro de custo dos gerentes
+            Sql = Sql + " and (exists(" & vbNewLine
+            Sql = Sql + "   select 0 from categoria_usuario cat" & vbNewLine
+            Sql = Sql + "     where cat.codigo_usuario=" + Trim(cod_user) & vbNewLine
+            Sql = Sql + "     and to_char(p1.grp_codigo) like cat.codigo_grupo||'%' ) " & vbNewLine
+
+            'usuário comum
+            Sql = Sql + "  or exists( select rml_numero_a from usuarios where upper(nome_usuario) in(select upper(nome_usuario) from usuarios where codigo='" + Trim(cod_user) + "')"
+            Sql = Sql + "     and p1.rml_numero_a = '" + ramal.Trim + "')"
+            Sql = Sql + ")"
+
+        End If
+
+        Sql = Sql + "     group by p2.nome_configuracao"
+
+        'Response.Write(Sql)
+        'Response.End()
+
+
+        Dim connection As New OleDbConnection(strConexao)
+
+        Dim cmd As OleDbCommand = connection.CreateCommand
+        cmd.CommandText = Sql
+        Dim reader As OleDbDataReader
+        connection.Open()
+        reader = cmd.ExecuteReader
+
+        Using connection
+            Me.GvResumo.DataSource = reader
+            Me.GvResumo.DataBind()
+        End Using
+
+
+        reader.Close()
+        reader = Nothing
+    End Sub
+
+    Sub VerificaParticulares()
+
+        If _editParticulares Then
+
+            Me.btParticular.Visible = True
+            Me.lbParticulares.Text = "<br><center><b> Você tem até " + FormataDataApontamento(_diaApontamento) + " para apontar suas ligações particulares.</b></center><br>"
+
+        End If
+
+    End Sub
+
+    Function FormataDataApontamento(ByVal _dia As String) As String
+        Dim _data As Date = New Date(Now.Year, Now.Month, _dia)
+
+        If _dia < Date.Now.Day Then
+            Return Format(DateAdd(DateInterval.Day, 1, _data), "dd/MM/yyyy")
+        Else
+            Return Format(_data, "dd/MM/yyyy")
+        End If
+    End Function
+
+    Protected Sub gvExtrato_RowDataBound(ByVal sender As Object, ByVal e As System.Web.UI.WebControls.GridViewRowEventArgs) Handles gvExtrato.RowDataBound
+
+        Dim dt As New DataTable
+
+        dt.Columns.Add("meta")
+        dt.Columns.Add("particular")
+        dt.Columns.Add("servico")
+        dt.Columns.Add("saldo_rest")
+
+        dt.Rows.Add()
+        dt.Rows(0).Item(0) = 0
+        dt.Rows(0).Item(1) = 0
+        dt.Rows(0).Item(2) = 0
+        dt.Rows(0).Item(3) = 0
+
+        If e.Row.RowType = DataControlRowType.DataRow Then
+
+            If _editParticulares Then
+
+
+                ' Display the company name in italics.
+                Dim _chkParticular As System.Web.UI.HtmlControls.HtmlInputCheckBox = DirectCast(e.Row.FindControl("chkParticular"), System.Web.UI.HtmlControls.HtmlInputCheckBox)
+                If e.Row.DataItem("PARTICULAR").ToString.ToUpper <> "TRUE" Then
+                    'chkParticular.ToolTip = "Converte esta ligação de serviço para particular."
+                    '_chkParticular.Checked = False
+                    _chkParticular.Attributes.Remove("checked")
+                Else
+                    'chkParticular.ToolTip = "Converte esta ligação de particular para serviço."
+                    _chkParticular.Checked = True
+
+                End If
+
+                If _diaApontamento > 0 Then
+                    Dim _diaLimiteEdicao As Integer = DateDiff("D", e.Row.Cells(4).Text, FormataDataApontamento(_diaApontamento))
+
+                    If e.Row.DataItem("FATURADO") <> "1" And _diaLimiteEdicao >= 0 And DateDiff("D", FormataDataApontamento(_diaApontamento), Now()) < 1 Then
+
+                        '_chkParticular.Checked = True
+                        '_chkParticular.Attributes.Add("OnClick", "SomaParticular(this);")
+                        '_chkParticular.Disabled = True
+                    Else
+                        _chkParticular.Disabled = True
+
+                    End If
+                End If
+            Else
+
+            End If
+            total_chamadas = total_chamadas + 1
+            total_duracao += Decimal.Parse(DataBinder.Eval(e.Row.DataItem, "duracao"))
+            total_valor += Decimal.Parse(DataBinder.Eval(e.Row.DataItem, "valor"))
+
+            If AppIni.Sulamerica_Param = True Then
+                e.Row.Cells(5).Text = _dao_commons.RetornaHHMMSS(e.Row.Cells(5).Text)
+            End If
+
+
+            If e.Row.DataItem("MARCOU_PARTICULAR").ToString.ToUpper = "TRUE" And e.Row.DataItem("PARTICULAR").ToString.ToUpper = "TRUE" Then
+                '_chkParticular.Style.Item("background-color") = "#000"
+                ' e.Row.Cells(22).Style.Item("background-color") = "#000"
+                e.Row.Cells(8).BackColor = Drawing.Color.LightSeaGreen
+                e.Row.Cells(8).ToolTip = "Ligação já marcada como particular"
+
+            End If
+        End If
+
+        If e.Row.RowType = DataControlRowType.Footer Then
+
+            e.Row.Cells(0).Text = "Total"
+            e.Row.Cells(2).Text = FormatNumber(total_chamadas, 0)
+            If AppIni.Sulamerica_Param = True Then
+                e.Row.Cells(5).Text = _dao_commons.RetornaHHMMSS(FormatNumber(total_duracao))
+            Else
+                e.Row.Cells(5).Text = FormatNumber(total_duracao)
+            End If
+            e.Row.Cells(7).Text = FormatCurrency(total_valor)
+
+
+        End If
+
+        '*************************** UTILIZANDO PARTICULAR POR ROTA ***************************************************
+
+        If e.Row.RowType = DataControlRowType.DataRow Then
+            Dim rota_list() As String
+            rota_list = rotas_particulares.Split(",")
+
+            Dim _chkParticular As System.Web.UI.HtmlControls.HtmlInputCheckBox = DirectCast(e.Row.FindControl("chkParticular"), System.Web.UI.HtmlControls.HtmlInputCheckBox)
+
+            For Each rota As String In rota_list
+                If e.Row.DataItem("ROTA").ToString.ToUpper = rota Then
+                    _chkParticular.Checked = True
+
+                End If
+            Next
+
+        End If
+
+        '**********************************************************************************************************
+
+        If e.Row.RowType = DataControlRowType.DataRow Then
+            Dim _chkParticular As System.Web.UI.HtmlControls.HtmlInputCheckBox = DirectCast(e.Row.FindControl("chkParticular"), System.Web.UI.HtmlControls.HtmlInputCheckBox)
+            If _chkParticular.Checked = True Then
+                _TotalParticular = _TotalParticular + e.Row.DataItem("VALOR")
+
+            End If
+        End If
+
+        Try
+            dt.Rows(0).Item(0) = FormatCurrency(IIf(_dao_commons.GetGenericList(ramal, "numero_a", "credito_mensal", "RAMAIS").Item(0).Descricao = "", "0", _dao_commons.GetGenericList(ramal, "numero_a", "credito_mensal", "RAMAIS").Item(0).Descricao))
+        Catch ex As Exception
+            dt.Rows(0).Item(0) = FormatCurrency(0)
+        End Try
+
+        dt.Rows(0).Item(1) = FormatCurrency(_TotalParticular)
+        dt.Rows(0).Item(2) = FormatCurrency(total_valor - _TotalParticular)
+        'dt.Rows(0).Item(3) = FormatCurrency(_dao_commons.GetGenericList(ramal, "numero_a", "saldo_atual", "RAMAIS").Item(0).Descricao)
+        Try
+            dt.Rows(0).Item(3) = _dao_commons.GetGenericList(ramal, "numero_a", "saldo_atual", "RAMAIS").Item(0).Descricao
+        Catch ex As Exception
+            dt.Rows(0).Item(3) = FormatCurrency(0)
+        End Try
+
+        If dt.Rows(0).Item(3) <> "" Then
+            dt.Rows(0).Item(3) = FormatCurrency(dt.Rows(0).Item(3))
+        Else
+            dt.Rows(0).Item(3) = FormatCurrency(0)
+        End If
+
+        GvTotais.DataSource = dt
+        GvTotais.DataBind()
+
+        'ViewState("TotalParticular") = _TotalParticular
+
+    End Sub
+
+    'Protected Sub btParticular_Click(ByVal sender As Object, ByVal e As System.EventArgs) Handles btParticular.Click
+    '    'SalvaParticulares()
+    '    Dim _totalParticular As Double = 0.0
+    '    Dim _msg As String = ""
+    '    For Each _row As GridViewRow In Me.gvExtrato.Rows
+
+
+    '        '_row.Cells(7).Controls(1)
+    '        Dim _chkParticular As System.Web.UI.HtmlControls.HtmlInputCheckBox = DirectCast(_row.Cells(7).FindControl("chkParticular"), System.Web.UI.HtmlControls.HtmlInputCheckBox)
+
+    '        If _chkParticular.Checked = True Then
+    '            _totalParticular = _totalParticular + _row.Cells(6).Text
+    '        End If
+
+    '    Next
+    '    _msg = "Autorizo o débito, através de folha de pagamento, do valor de " + FormatCurrency(_totalParticular.ToString) + "  referente as ligações telefônicas que eu apontei como particulares em meu relatório de ligações telefônicas decorrentes do aparelho celular e/ou ramal que me foi disponibilizado para o trabalho."
+    '    ClientScript.RegisterClientScriptBlock(Me.GetType(), "resultscript", "<script>alert('" + FormatCurrency(_totalParticular.ToString) + "'); __doPostBack('btSavaParticularExec', '');</script>")
+
+    'End Sub
+
+    Function SalvaParticulares() As Boolean
+
+        Dim totalParticular As Double = 0.0
+        Dim _msg As String = ""
+        For Each _row As GridViewRow In Me.gvExtrato.Rows
+
+
+            '_row.Cells(7).Controls(1)
+            Dim _chkParticular As System.Web.UI.HtmlControls.HtmlInputCheckBox = DirectCast(_row.Cells(7).FindControl("chkParticular"), System.Web.UI.HtmlControls.HtmlInputCheckBox)
+            Dim _codigo As System.Web.UI.HtmlControls.HtmlInputHidden = DirectCast(_row.Cells(7).FindControl("tbCodigo"), System.Web.UI.HtmlControls.HtmlInputHidden)
+            Dim _dataIni As String = _row.Cells(4).Text
+            Dim _particular As String = "N"
+            Dim _num_chamado As String = _row.Cells(3).Text
+            Dim _ramal As String = _row.Cells(0).Text
+            If _chkParticular.Checked = True Then
+                'chama a função que faz o update
+                _particular = "S"
+                totalParticular = totalParticular + Convert.ToDouble(_row.Cells(7).Text.Replace("R$", ""))
+            End If
+
+
+            _dao.UpdateParticulares(_codigo.Value, Session("Username"), _particular, _dataIni)
+            If Not _num_chamado = "SEMNUMERO" Then
+
+                If _particular = "S" Then
+                    'INSERE NA TABELA NA PARTICULARES
+                    Dim sql As String = "select count(*) from linhas_particulares where num_linha='" & _ramal.Trim.Replace("(", "").Replace(")", "").Replace("-", "") & "' and NUM_CHAMADO='" & _num_chamado & "'"
+                    Dim dt As DataTable = _dao_commons.myDataTable(sql)
+                    If dt.Rows(0).Item(0) < 1 Then
+                        'insere 
+                        _dao_commons.InsereTabelaParticulares(Trim(Session("codigousuario")), _ramal, _num_chamado, "R", Session("Username"), "S", _dataIni)
+                    End If
+                Else
+                    'delete 
+                    _dao_commons.InsereTabelaParticulares(_codigo.Value, _ramal, _num_chamado, "R", Session("Username"), "N", _dataIni)
+
+                End If
+            End If
+
+        Next
+        _msg = "Atualização no valor de R$ " + FormatCurrency(totalParticular.ToString, 2) + "  efetuada."
+        ClientScript.RegisterClientScriptBlock(Me.GetType(), "resultscript", "<script>alert('" + _msg + "');</script>")
+
+        Return True
+
+    End Function
+
+    Protected Sub btSavaParticularExec_Click(ByVal sender As Object, ByVal e As System.EventArgs) Handles btSavaParticularExec.Click
+
+        SalvaParticulares()
+
+    End Sub
+
+    Protected Sub gvResumo_RowDataBound(ByVal sender As Object, ByVal e As System.Web.UI.WebControls.GridViewRowEventArgs) Handles GvResumo.RowDataBound
+
+        If e.Row.RowType = DataControlRowType.DataRow Then
+
+
+            total_qtd_resumo += Decimal.Parse(DataBinder.Eval(e.Row.DataItem, "qtd"), 0)
+            total_valor_resumo += Decimal.Parse(DataBinder.Eval(e.Row.DataItem, "valor"))
+            total_duracao_resumo += Decimal.Parse(DataBinder.Eval(e.Row.DataItem, "duracao"))
+
+        End If
+
+        If e.Row.RowType = DataControlRowType.Footer Then
+
+            e.Row.Cells(0).Text = "Total"
+            e.Row.Cells(1).Text = FormatNumber(total_duracao_resumo, 2)
+            e.Row.Cells(2).Text = FormatNumber(total_qtd_resumo, 0)
+            e.Row.Cells(3).Text = FormatCurrency(total_valor_resumo)
+
+
+        End If
+
+    End Sub
+
+    Protected Sub btParticular_Click(ByVal sender As Object, ByVal e As System.EventArgs) Handles btParticular.Click
+        SalvaParticulares()
+    End Sub
+
+End Class

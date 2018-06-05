@@ -1,0 +1,72 @@
+﻿Imports System.Collections.Generic
+Imports System.Net
+Imports System.Web
+Imports System.Web.Http
+Imports System.Web.HttpContext
+Imports System.Web.SessionState
+
+Public Class LoginController
+    Inherits ApiController
+
+    Dim _dao As New DAOUsuarios
+    Dim session As HttpSessionState = HttpContext.Current.Session
+
+    ' GET api/<controller>
+    <HttpGet>
+    Public Function Index(ByVal id As String) As IEnumerable(Of String)
+        Return New String() {"Você entrou no Index - " & id}
+        'Return New String() {ConfigurationManager.ConnectionStrings("ConnectionString").ConnectionString}
+    End Function
+
+    ' GET api/<controller>
+    <HttpGet>
+    Public Function GetValues() As IEnumerable(Of String)
+        Return New String() {"value1", "value2"}
+        'Return New String() {ConfigurationManager.ConnectionStrings("ConnectionString").ConnectionString}
+    End Function
+
+    ' GET api/<controller>/5
+    <HttpGet>
+    Public Function GetValue(ByVal id As Integer) As String
+        Return "value"
+    End Function
+
+    ' POST api/<controller>
+    <HttpPost>
+    Public Function PostValue(<FromBody()> ByVal usuario As AppUsuarios) As IHttpActionResult
+        Dim _usuario As AppUsuarios = Nothing
+        If Not usuario Is Nothing Then
+
+            usuario.Login_Usuario = DAO_Commons.PrepareString(usuario.Login_Usuario)
+            usuario.Senha_Usuario = DAO_Commons.PrepareString(usuario.Senha_Usuario)
+            _usuario = _dao.LoginV2(usuario.Login_Usuario, usuario.Senha_Usuario, usuario.AD)
+        End If
+
+
+        If Not _usuario Is Nothing Then
+
+            'session.Add("codigousuario", _usuario.codigo)
+            'session("nomeusuario") = _usuario.Nome_Usuario
+            'OK
+            'Session("FirstName") = _usuario.Codigo
+            Return Ok(_usuario)
+        Else
+            'Return httpres
+            Return NotFound()
+        End If
+
+    End Function
+
+    ' PUT api/<controller>/5
+    Public Sub PutValue(ByVal id As Integer, <FromBody()> ByVal value As String)
+
+    End Sub
+
+    ' DELETE api/<controller>/5
+    Public Sub DeleteValue(ByVal id As Integer)
+
+    End Sub
+
+
+
+End Class

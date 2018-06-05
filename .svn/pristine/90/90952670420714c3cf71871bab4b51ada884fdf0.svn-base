@@ -1,0 +1,873 @@
+﻿Imports Microsoft.VisualBasic
+Imports System.Data
+Imports System.Data.OleDb
+Imports System.Configuration
+Imports System
+Imports System.Collections.Generic
+Imports System.Web.SessionState
+
+Public Class DAO_Dashboard
+    Inherits Page
+    Private _strConn As String = ConfigurationManager.ConnectionStrings("connectionString").ConnectionString
+    Private _dao_commons As New DAO_Commons
+    'Dim session As HttpSessionState = HttpContext.Current.Session
+
+    Public Property strConn As String
+        Get
+            Return _strConn
+        End Get
+        Set(ByVal value As String)
+            _strConn = value
+        End Set
+    End Property
+
+    Private _msg As String
+    Public Property MSG As String
+        Get
+            Return _msg
+        End Get
+        Set(ByVal value As String)
+            _msg = value
+        End Set
+    End Property
+
+    Public Function RetornaConexao() As String
+        Return strConn
+    End Function
+
+    Function GetTop10(pTipo As String, vencimento As String, grupo As String, area As String, area_interna As String, codigousuario As String) As DataTable
+        Dim session As HttpSessionState = HttpContext.Current.Session
+        Dim sql As String = ""
+
+        sql += " select * from("
+        sql += " select usuario, gasto,data "
+        sql += " ,RANK() OVER (ORDER BY gasto desc)ordem "
+        sql += " from( select sum(gasto) gasto, data, usuario  from( "
+        'sql += " select sum(nvl(p1.total_gasto,p1.valor_cdr)) + nvl(max(p1.rateio),0) gasto, to_char(p3.dt_vencimento, 'MM/YYYY') data,nvl(u.nome_usuario,p1.rml_numero_a) usuario"
+        'sql += " select sum(nvl(p1.total_gasto,p1.valor_cdr))+ nvl(max(p1.parcela), 0)  + (nvl(max(p1.custo_fixo), 0) )+ nvl(max(p1.rateio),0)  gasto, to_char(p3.dt_vencimento, 'MM/YYYY') data,nvl(u.nome_usuario,p1.rml_numero_a) usuario"
+        sql += " select sum(nvl(p1.total_gasto,p1.valor_cdr))+ nvl(max(p1.rateio),0)  gasto, to_char(p3.dt_vencimento, 'MM/YYYY') data, "
+        If pTipo = "2" Then
+            sql += "p1.rml_numero_a usuario"
+        Else
+            sql += " nvl(u.nome_usuario,p1.rml_numero_a) usuario"
+        End If
+
+
+        'sql += " , p1.grp_codigo as codigo  "
+        sql += " from CDRS_CELULAR_ANALITICO_MV p1, faturas_arquivos p2, faturas p3 , faturas_tipo p4, grupos p5,usuarios u  "
+        sql += " where p1.codigo_conta=p2.codigo_conta And p3.codigo_fatura=p2.codigo_fatura  "
+        sql += " And p3.codigo_tipo=p4.codigo_tipo(+) And p1.grp_codigo=p5.codigo(+) And p1.codigo_usuario=u.codigo(+) "
+
+        If vencimento <> "" Then
+            sql += " And to_char(p3.dt_vencimento, 'MMYYYY')='" & vencimento & "'"
+        End If
+        If pTipo <> "" Then
+            sql += " and p3.codigo_tipo in(" & pTipo & ")"
+        End If
+        If pTipo = "1" Then
+            'movel
+            sql += "  and p1.codigo_usuario is not null"
+
+        End If
+        If grupo <> "" Then
+            sql += " and p5.codigo like '" & grupo & "%'"
+        End If
+
+        If area <> "" Then
+            sql += " and p5.area = '" & area & "'"
+        End If
+        If area_interna <> "" Then
+            sql += " and p5.area_interna = '" & area_interna & "'"
+        End If
+
+
+        sql += " and to_char(p3.dt_vencimento, 'MMYYYY')='" & vencimento & "'"
+
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            If pTipo = "2" Then
+                sql = sql + " and 1=0 "
+
+            End If
+
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(codigousuario) & vbNewLine
+            sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+
+        '
+
+
+        'sql += " group by nvl(u.nome_usuario,p1.rml_numero_a)"
+        If pTipo = "2" Then
+            sql += " group by  p1.rml_numero_a"
+        Else
+            sql += " group by  nvl(u.nome_usuario,p1.rml_numero_a)"
+        End If
+        sql += " ,to_char(p3.dt_vencimento, 'MM/YYYY')"
+
+
+        'parcelas
+        sql += " union all "
+        sql += " select nvl(max(case when to_date(to_char(p3.dt_vencimento,'MM/YYYY'),'MM/YYYY')<= to_date(to_char(pa.fim_parcela,'MM/YYYY'),'MM/YYYY') and  MONTHS_BETWEEN (to_date(to_char(p3.dt_vencimento,'MM/YYYY'),'MM/YYYY'), to_date(to_char(pa.inicio_parcela,'MM/YYYY'),'MM/YYYY'))>=0 then nvl(pa.parcela,0) else 0 end),0)  gasto, to_char(p3.dt_vencimento, 'MM/YYYY') data,nvl(u.nome_usuario,p1.rml_numero_a) usuario"
+
+        'sql += " , p1.grp_codigo as codigo  "
+        sql += " from CDRS_CELULAR_ANALITICO_MV p1, faturas_arquivos p2, faturas p3 , faturas_tipo p4, grupos p5,usuarios u ,V_LINHAS_PARCELAS_CUSTOS  pa "
+        sql += " where p1.codigo_conta=p2.codigo_conta and p3.codigo_fatura=p2.codigo_fatura  "
+        sql += " and p3.codigo_tipo=p4.codigo_tipo(+) and p1.grp_codigo=p5.codigo(+) and p1.codigo_usuario=u.codigo(+) "
+        sql += "  and p1.codigo_usuario=pa.codigo_usuario(+) and p1.rml_numero_a=pa.num_linha(+)"
+
+        If vencimento <> "" Then
+            sql += " and to_char(p3.dt_vencimento, 'MMYYYY')='" & vencimento & "'"
+        End If
+        If pTipo <> "" Then
+            sql += " and p3.codigo_tipo='" & pTipo & "'"
+        End If
+        If pTipo = "1" Then
+            'movel
+            sql += "  and p1.codigo_usuario is not null"
+
+        End If
+        If grupo <> "" Then
+            sql += " and p5.codigo like '" & grupo & "%'"
+        End If
+
+        If area <> "" Then
+            sql += " and p5.area = '" & area & "'"
+        End If
+        If area_interna <> "" Then
+            sql += " and p5.area_interna = '" & area_interna & "'"
+        End If
+
+
+        sql += " and to_char(p3.dt_vencimento, 'MMYYYY')='" & vencimento & "'"
+
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            If pTipo = "2" Then
+                sql = sql + " and 1=0 "
+            End If
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(codigousuario) & vbNewLine
+            sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+
+
+        sql += " group by u.nome_usuario,p1.rml_numero_a "
+        sql += " ,to_char(p3.dt_vencimento, 'MM/YYYY')"
+
+
+        'CUSTO FIXO
+        sql += " union all"
+        sql += " select nvl(max(p1.custo_fixo),0)  gasto, to_char(p3.dt_vencimento, 'MM/YYYY') data,nvl(u.nome_usuario,p1.rml_numero_a) usuario"
+
+        'sql += " , p1.grp_codigo as codigo  "
+        sql += " from CDRS_CELULAR_ANALITICO_MV p1, faturas_arquivos p2, faturas p3 , faturas_tipo p4, grupos p5,usuarios u  "
+        sql += " where p1.codigo_conta=p2.codigo_conta and p3.codigo_fatura=p2.codigo_fatura  "
+        sql += " and p3.codigo_tipo=p4.codigo_tipo(+) and p1.grp_codigo=p5.codigo(+) and p1.codigo_usuario=u.codigo(+) "
+
+        If vencimento <> "" Then
+            sql += " and to_char(p3.dt_vencimento, 'MMYYYY')='" & vencimento & "'"
+        End If
+        If pTipo <> "" Then
+            sql += " and p3.codigo_tipo='" & pTipo & "'"
+        End If
+        If pTipo = "1" Then
+            'movel
+            sql += "  and p1.codigo_usuario is not null"
+
+        End If
+        If grupo <> "" Then
+            sql += " and p5.codigo like '" & grupo & "%'"
+        End If
+
+        If area <> "" Then
+            sql += " and p5.area = '" & area & "'"
+        End If
+        If area_interna <> "" Then
+            sql += " and p5.area_interna = '" & area_interna & "'"
+        End If
+
+
+        sql += " and to_char(p3.dt_vencimento, 'MMYYYY')='" & vencimento & "'"
+
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            If pTipo = "2" Then
+                sql = sql + " and 1=0 "
+            End If
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(codigousuario) & vbNewLine
+            sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+
+
+        sql += " group by u.nome_usuario,p1.rml_numero_a "
+        sql += " ,to_char(p3.dt_vencimento, 'MM/YYYY')"
+
+        sql += " ) where gasto>0 group by data, usuario "
+
+
+
+
+        sql += " ))"
+
+        'sql += " group by fs.status_desc"
+
+        ' Session("exibir_todos") = False Then
+        sql += " where ordem <=10 And rownum<=10 order by ordem"
+        'End If
+
+        Dim dt As DataTable = _dao_commons.myDataTable(sql)
+
+        Return dt
+
+    End Function
+
+
+    Public Function CarregaAreas(codigoUsuario As String) As List(Of AppGeneric)
+        'verifica se é administrador
+        Dim _list As New List(Of AppGeneric)
+        Dim admin As String = ""
+
+        If Not DALCGestor.AcessoAdmin(codigoUsuario) Then
+            'não filtra o centro de custo dos gerentes
+            admin += " And exists(" & vbNewLine
+            admin += "   Select 0 from categoria_usuario cat" & vbNewLine
+            admin += "     where cat.codigo_usuario=" + codigoUsuario & vbNewLine
+            admin += "      and to_char(u.codigo) like cat.codigo_grupo||'%' ) " & vbNewLine
+        End If
+
+        _list = _dao_commons.GetGenericList("", "u.area", "u.area", "grupos u", "", admin & " and u.area is not null order by u.area ")
+
+        If _list.Count > 1 Then
+
+            _list.Insert("0", New AppGeneric("", "TODOS"))
+
+            'ViewState("manyCentral") = True
+        Else
+            'Session("nivel" & Session("codigousuario")) = "3"
+            _list.Insert("0", New AppGeneric("", "Todos"))
+        End If
+
+
+        Return _list
+
+    End Function
+
+    Public Function CarregaAreasInternas(codigoUsuario As String, Optional area As String = "") As List(Of AppGeneric)
+        'verifica se é administrador
+        'verifica se é administrador
+        Dim _list As New List(Of AppGeneric)
+        Dim admin As String = ""
+
+        If Not DALCGestor.AcessoAdmin(codigoUsuario) Then
+            'não filtra o centro de custo dos gerentes
+            admin += " and exists(" & vbNewLine
+            admin += "   select 0 from categoria_usuario cat" & vbNewLine
+            admin += "     where cat.codigo_usuario=" + codigoUsuario & vbNewLine
+            admin += "      and to_char(u.codigo) like cat.codigo_grupo||'%' ) " & vbNewLine
+        End If
+
+        If area <> "" Then
+            _list = _dao_commons.GetGenericList("", "u.area_interna", "u.area_interna", "grupos u", "", admin & " and u.area_interna is not null and u.area='" & area & "' order by u.area_interna")
+        Else
+            _list = _dao_commons.GetGenericList("", "u.area_interna", "u.area_interna", "grupos u", "", admin & " and u.area_interna is not null order by u.area_interna")
+        End If
+
+
+
+        If _list.Count > 1 Then
+            ' _list.Insert("0", New AppGeneric("", "Todos"))
+        End If
+        _list.Insert("0", New AppGeneric("", "TODOS"))
+
+        '    'cmbAreaInterna.DataSource = _list
+        '    'cmbAreaInterna.DataBind()
+
+        'Else
+        '    'Session("nivel" & Session("codigousuario")) = "2"
+        '    'cmbAreaInterna.DataSource = _list
+        '    'cmbAreaInterna.DataBind()
+        '    'Session("area_interna" & Session("codigousuario")) = cmbAreaInterna.SelectedItem.Text
+
+        'End If
+
+        Return _list
+
+    End Function
+
+    Public Function CarregaGrupos(codigoUsuario As String, Optional ByVal area As String = "", Optional ByVal area_interna As String = "") As List(Of CCusto)
+        'verifica se é administrador
+        Dim _list As List(Of CCusto)
+        Dim str As String = ""
+        If Not DALCGestor.AcessoAdmin(codigoUsuario) Then
+
+            _list = DALCGestor.GetCCustoByUsuario(codigoUsuario, area, area_interna)
+
+        Else
+            ' Me.lbGrupos.Text = "Todos"
+            _list = DALCGestor.GetCCustoByUsuario(-1, area, area_interna)
+        End If
+        _list.Insert("0", New CCusto("", "Todos"))
+
+        If _list.Count <> 1 Then
+            'Me.ddlGrupos.Items.Insert(0, New ListItem("Todos", ""))
+
+        End If
+
+        ' Me.ddlGrupos.DataSource = _list
+
+
+        If _list.Count = 1 Then
+            'Session("nivel" & Session("codigousuario")) = "3"
+        End If
+
+        Return _list
+
+
+    End Function
+
+    Function GetServicosMes(pTipo As String, vencimento As String, grupo As String, area As String, area_interna As String, codigousuario As String) As DataTable
+        Dim session As HttpSessionState = HttpContext.Current.Session
+        Dim sql As String = ""
+
+        sql += " select tarifa, data ,TIPO, nvl(sum(gasto),2)gasto from("
+        sql += " select tarifa, sum(gasto) gasto, data,decode(codigo_tipo,1,'MOVEL','6','MOVEL','FIXO')TIPO, ordem "
+        sql += " from (select case when p3.codigo_tipo=1 then 'VOZ' else replace(nvl(p4.nome_configuracao,'VOZ'),'DEFAULT','VOZ') end tarifa, "
+        sql += " sum(nvl(p1.total_gasto,p1.valor_cdr)) gasto,to_char(p3.dt_vencimento, 'MM/YYYY') data,codigo_tipo,'1' ordem "
+        sql += " from CDRS_CELULAR_analitico_mv p1,faturas_arquivos p2,faturas p3,tarifacao p4,grupos  p5"
+        sql += " where p1.codigo_conta = p2.codigo_conta and p3.codigo_tipo in(1,2) "
+        sql += " and p3.codigo_fatura = p2.codigo_fatura and p1.tarif_codigo = p4.codigo(+) and p1.cdr_codigo = '3' and p1.grp_codigo = p5.codigo(+) "
+        ' If vencimento <> "" Then
+        sql += " and to_char(p3.dt_vencimento, 'MMYYYY')='" & vencimento & "'"
+        ' End If
+
+        If grupo <> "" Then
+            sql += " and p5.codigo like '" & grupo & "%'"
+        End If
+
+        If area <> "" Then
+            sql += " and p5.area = '" & area & "'"
+        End If
+        If area_interna <> "" Then
+            sql += " and p5.area_interna = '" & area_interna & "'"
+        End If
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(codigousuario) & vbNewLine
+            sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+
+        sql += " group by to_char(p3.dt_vencimento, 'MM/YYYY'),p3.codigo_tipo,case when p3.codigo_tipo=1 then 'VOZ' else replace(nvl(p4.nome_configuracao,'VOZ'),'DEFAULT','VOZ') end "
+        sql += " union "
+        sql += "  select replace(NVL(p4.nome_configuracao, 'SERVIÇOS'),'DEFAULT','SERVIÇOS') tarifa, "
+        sql += " sum(nvl(p1.total_gasto,p1.valor_cdr)) gasto,to_char(p3.dt_vencimento, 'MM/YYYY') data,codigo_tipo, '2' ordem "
+        sql += " from CDRS_CELULAR_analitico_mv p1, faturas_arquivos p2,faturas p3,tarifacao p4,grupos  p5 "
+        sql += " where p1.codigo_conta = p2.codigo_conta "
+        sql += " and p3.codigo_fatura = p2.codigo_fatura and p1.tarif_codigo = p4.codigo(+) and p1.cdr_codigo <> '3' and p1.grp_codigo = p5.codigo(+) "
+        'If vencimento <> "" Then
+        sql += " and to_char(p3.dt_vencimento, 'MMYYYY')='" & vencimento & "'"
+        'End If
+
+        If grupo <> "" Then
+            sql += " and p5.codigo like '" & grupo & "%'"
+        End If
+
+        If area <> "" Then
+            sql += " and p5.area = '" & area & "'"
+        End If
+        If area_interna <> "" Then
+            sql += " and p5.area_interna = '" & area_interna & "'"
+        End If
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(codigousuario) & vbNewLine
+            sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+
+        sql += " group by replace(NVL(p4.nome_configuracao, 'SERVIÇOS'),'DEFAULT','SERVIÇOS'),to_char(p3.dt_vencimento, 'MM/YYYY'),p3.codigo_tipo"
+
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'RATEIO
+            sql += " union "
+            sql += " select tarifa, nvl(sum(gasto),0) gasto, data, codigo_tipo, ordem from( "
+            sql += "  select 'SERVIÇOS' tarifa, "
+            sql += " r.rateio gasto,to_char(p3.dt_vencimento, 'MM/YYYY') data,codigo_tipo,p1.rml_numero_a, '2' ordem "
+            sql += " from CDRS_CELULAR_analitico_mv p1, faturas_arquivos p2,faturas p3,tarifacao p4,grupos  p5, rateiogestao_mv r "
+            sql += " where p1.codigo_conta = p2.codigo_conta and p3.codigo_tipo in(1,2) "
+            sql += " and p3.codigo_fatura = p2.codigo_fatura and p1.tarif_codigo = p4.codigo(+) and p1.grp_codigo = p5.codigo(+) and p1.rml_numero_a = r.rml_numero_a(+) and p1.codigo_conta = r.codigo_conta(+) "
+            'If vencimento <> "" Then
+            sql += " and to_char(p3.dt_vencimento, 'MMYYYY')='" & vencimento & "'"
+            'End If
+
+            If grupo <> "" Then
+                sql += " and p5.codigo like '" & grupo & "%'"
+            End If
+
+            If area <> "" Then
+                sql += " and p5.area = '" & area & "'"
+            End If
+            If area_interna <> "" Then
+                sql += " and p5.area_interna = '" & area_interna & "'"
+            End If
+            If Not DALCGestor.AcessoAdmin(codigousuario) Then
+                'não filtra o centro de custo dos gerentes
+                sql = sql + " and exists(" & vbNewLine
+                sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+                sql = sql + "     where p100.codigo_usuario=" + Trim(codigousuario) & vbNewLine
+                sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+                sql = sql + "     and to_char(p1.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+            End If
+
+            sql += " group by to_char(p3.dt_vencimento, 'MM/YYYY'),p3.codigo_tipo,p1.rml_numero_a, r.rateio"
+            sql += " ) group by tarifa,data,codigo_tipo, ordem  "
+        End If
+
+
+        'PARCELAS
+        sql += " union "
+        sql += " select tarifa, nvl(sum(gasto),2)gasto, data, codigo_tipo, ordem from( "
+        sql += "  select 'APARELHO' tarifa, "
+        sql += " max(pa.PARCELA) gasto,to_char(p3.dt_vencimento, 'MM/YYYY') data,codigo_tipo,p1.rml_numero_a, '2' ordem "
+        sql += " from CDRS_CELULAR_analitico_mv p1, faturas_arquivos p2,faturas p3,tarifacao p4,grupos  p5,V_LINHAS_PARCELAS_CUSTOS pa "
+        sql += " where p1.codigo_conta = p2.codigo_conta  and p3.codigo_tipo in(1,2)"
+        sql += " and p3.codigo_fatura = p2.codigo_fatura and p1.tarif_codigo = p4.codigo(+) and p1.grp_codigo = p5.codigo(+) "
+        sql += "  and p1.rml_numero_a=pa.num_linha(+)"
+        'If vencimento <> "" Then
+        sql += " and to_char(p3.dt_vencimento, 'MMYYYY')='" & vencimento & "'"
+        'End If
+
+        If grupo <> "" Then
+            sql += " and p5.codigo like '" & grupo & "%'"
+        End If
+
+        If area <> "" Then
+            sql += " and p5.area = '" & area & "'"
+        End If
+        If area_interna <> "" Then
+            sql += " and p5.area_interna = '" & area_interna & "'"
+        End If
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(codigousuario) & vbNewLine
+            sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+
+        sql += " group by to_char(p3.dt_vencimento, 'MM/YYYY'),p3.codigo_tipo,p1.rml_numero_a"
+        sql += " ) group by tarifa,data,codigo_tipo, ordem  "
+
+        'CUSTO FIXO
+        sql += " union "
+        sql += " select tarifa, nvl(sum(gasto),2)gasto, data, codigo_tipo, ordem from( "
+        sql += "  select 'SERVIÇOS' tarifa, "
+        sql += " max(nvl(pa.custo_fixo,0)) gasto,to_char(p3.dt_vencimento, 'MM/YYYY') data,codigo_tipo,p1.rml_numero_a, '2' ordem "
+        sql += " from CDRS_CELULAR_analitico_mv p1, faturas_arquivos p2,faturas p3,tarifacao p4,grupos  p5, V_LINHAS_PARCELAS_CUSTOS pa  "
+        sql += " where p1.codigo_conta = p2.codigo_conta  and p3.codigo_tipo in(1,2)"
+        sql += " and p3.codigo_fatura = p2.codigo_fatura and p1.tarif_codigo = p4.codigo(+) and p1.grp_codigo = p5.codigo(+) "
+        sql += " and p1.rml_numero_a=pa.num_linha(+)"
+        'If vencimento <> "" Then
+        sql += " and to_char(p3.dt_vencimento, 'MMYYYY')='" & vencimento & "'"
+        'End If
+
+        If grupo <> "" Then
+            sql += " and p5.codigo like '" & grupo & "%'"
+        End If
+
+        If area <> "" Then
+            sql += " and p5.area = '" & area & "'"
+        End If
+        If area_interna <> "" Then
+            sql += " and p5.area_interna = '" & area_interna & "'"
+        End If
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(codigousuario) & vbNewLine
+            sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+
+        sql += " group by to_char(p3.dt_vencimento, 'MM/YYYY'),p3.codigo_tipo,p1.rml_numero_a"
+        sql += " ) group by tarifa,data,codigo_tipo, ordem  "
+
+        sql += " ) "
+        sql += " group by tarifa, data,codigo_tipo,ordem"
+        sql += " order by to_date(data, 'MM/YYYY'),tarifa,codigo_tipo"
+
+        'parcelas
+
+
+        sql += " )group by tarifa, data,TIPO order by gasto desc"
+
+        'Response.Write(sql)
+        'Response.End()
+
+        'End If
+
+        Dim dt As DataTable = _dao_commons.myDataTable(sql)
+
+        Return dt
+
+    End Function
+
+
+    Public Function getUsuariosPerfis(vencimento As String, grupo As String, area As String, area_interna As String, codigousuario As String, Optional nivel As String = "") As DataTable
+        'verifica se é administrador
+        'verifica se é administrador
+        Dim _list As New List(Of AppGeneric)
+        Dim admin As String = ""
+
+
+
+
+        Dim sql As String = "select codigo,nome_usuario, sum(total)total, max(nivel)nivel from ("
+        'diretor de central
+        sql += "select codigo,nome_usuario, count(*)total, 3 nivel "
+        sql += " from("
+        sql += " Select distinct g.area_interna, u.codigo,u.nome_usuario from grupos g, usuarios u, categoria_usuario cat where g.area_interna is not null "
+        sql += " and cat.codigo_usuario=u.codigo and to_char(g.codigo) like cat.codigo_grupo||'%' "
+        sql += " and  cat.tipo_usuario In('D','G','GC') "
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql += " and exists(" & vbNewLine
+            sql += "   select 0 from categoria_usuario cat" & vbNewLine
+            sql += "     where cat.codigo_usuario=" + codigousuario & vbNewLine
+            sql += "      and to_char(u.codigo) like cat.codigo_grupo||'%' ) " & vbNewLine
+        End If
+        sql += " )"
+        sql += " group by codigo,nome_usuario"
+        sql += " having count(*)>1 "
+
+        'diretor area interna
+        sql += " union select codigo,nome_usuario, count(*)total, 2 nivel "
+        sql += " from("
+        sql += " Select distinct g.codigo ccusto, u.codigo,u.nome_usuario from grupos g, usuarios u, categoria_usuario cat where g.codigo is not null "
+        sql += " and cat.codigo_usuario=u.codigo and to_char(g.codigo) like cat.codigo_grupo||'%' "
+        sql += " and  cat.tipo_usuario In('D','G','GC') "
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql += " and exists(" & vbNewLine
+            sql += "   select 0 from categoria_usuario cat" & vbNewLine
+            sql += "     where cat.codigo_usuario=" + codigousuario & vbNewLine
+            sql += "      and to_char(g.codigo) like cat.codigo_grupo||'%' ) " & vbNewLine
+        End If
+        sql += " )"
+        sql += " group by codigo,nome_usuario"
+        sql += " having count(*)>1 "
+
+        sql += " union select codigo,nome_usuario, count(*)total, 1 nivel "
+        sql += " from("
+        sql += " Select distinct g.codigo ccusto, u.codigo,u.nome_usuario from grupos g, usuarios u, categoria_usuario cat where g.codigo is not null "
+        sql += " and cat.codigo_usuario=u.codigo and to_char(g.codigo) like cat.codigo_grupo||'%' "
+        sql += " and  cat.tipo_usuario In('D','G','GC') "
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql += " and exists(" & vbNewLine
+            sql += "   select 0 from categoria_usuario cat" & vbNewLine
+            sql += "     where cat.codigo_usuario=" + codigousuario & vbNewLine
+            sql += "      and to_char(g.codigo) like cat.codigo_grupo||'%' ) " & vbNewLine
+        End If
+        sql += " )"
+        sql += " group by codigo,nome_usuario"
+        sql += " having count(*)=1 "
+
+        'usuarios comuns
+        sql += " union select codigo,nome_usuario, count(*)total, 0 nivel "
+        sql += " from("
+        sql += " Select distinct u.codigo,u.nome_usuario from usuarios u where not exists (select 0 from categoria_usuario where codigo_usuario=u.codigo)  "
+
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql += " and exists(" & vbNewLine
+            sql += "   select 0 from categoria_usuario cat" & vbNewLine
+            sql += "     where cat.codigo_usuario=" + codigousuario & vbNewLine
+            sql += "      and to_char(u.grp_codigo) like cat.codigo_grupo||'%' ) " & vbNewLine
+        End If
+        sql += " )"
+        sql += " group by codigo,nome_usuario"
+        sql += " having count(*)=1 "
+
+        sql += ") group by codigo,nome_usuario"
+        If nivel <> "" Then
+            sql += " having perfil=" & nivel
+        End If
+
+
+        Dim dt As DataTable = _dao_commons.myDataTable(sql)
+
+        Return dt
+
+    End Function
+
+    Public Function getTotalLinhasusuarios(Codigos As String, codigousuario As String, Optional usuComum As String = "") As DataTable
+
+        Dim listcodigos() As String = Codigos.Split(",")
+        Dim codigoStr As String = ""
+        Dim i As Integer = 0
+        For i = 0 To listcodigos.Length - 1
+            codigoStr += " lm.codigo_usuario=" & listcodigos(i) & " or "
+        Next
+        If codigoStr.Length > 3 Then
+            codigoStr = codigoStr.Substring(0, codigoStr.Length - 3)
+        End If
+
+
+        Dim sql As String = "select sum(total) from( "
+        sql += " select count(*)total from linhas_moveis lm, linhas l, usuarios u  where l.codigo_linha=lm.codigo_linha and lm.codigo_usuario=u.codigo "
+        'sql += " and lm.codigo_usuario in(" + Codigos + ")"
+        If usuComum = "S" Then
+            sql += "and lm.codigo_usuario not in (select codigo_usuario from categoria_usuario)"
+        Else
+            sql += "and (" & codigoStr & ")"
+        End If
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql += " and exists(" & vbNewLine
+            sql += "   select 0 from categoria_usuario cat" & vbNewLine
+            sql += "     where cat.codigo_usuario=" + codigousuario & vbNewLine
+            sql += "     and to_char(u.grp_codigo) like cat.codigo_grupo||'%' ) " & vbNewLine
+        End If
+
+        sql += " union select count(*)total from linhas lm, usuarios u  where lm.codigo_linha not in(select codigo_linha from linhas_moveis ) and lm.codigo_usuario=u.codigo  "
+        'sql += " and l.codigo_usuario in(" + Codigos + ")"
+        'sql += "and (" & codigoStr & ")"
+        If usuComum = "S" Then
+            sql += "and lm.codigo_usuario not in (select codigo_usuario from categoria_usuario)"
+        Else
+            sql += "and (" & codigoStr & ")"
+        End If
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql += " and exists(" & vbNewLine
+            sql += "   select 0 from categoria_usuario cat" & vbNewLine
+            sql += "     where cat.codigo_usuario=" + codigousuario & vbNewLine
+            sql += "      and to_char(u.grp_codigo) like cat.codigo_grupo||'%' ) " & vbNewLine
+        End If
+        sql += ") "
+        Dim dt As DataTable = _dao_commons.myDataTable(sql)
+
+        Return dt
+
+
+
+    End Function
+
+    Public Function getLinhasPerfil(vencimento As String, grupo As String, area As String, area_interna As String, codigousuario As String, Optional nivel As String = "") As DataTable
+
+
+        Dim sql As String = " select op.plano tipo, count(*)total "
+        sql += "   from linhas_moveis lm, linhas l, linhas_tipo lp, grupos_item gi, grupos g, operadoras_planos op "
+        sql += "    where l.codigo_linha = lm.codigo_linha and l.codigo_tipo=lp.codigo_tipo(+) and l.codigo_plano=op.codigo_plano and l.codigo_linha=gi.item(+) and gi.grupo=g.codigo(+) and l.status=1 "
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql += " and exists(" & vbNewLine
+            sql += "   select 0 from categoria_usuario cat" & vbNewLine
+            sql += "     where cat.codigo_usuario=" + codigousuario & vbNewLine
+            sql += "      and to_char(gi.grupo) like cat.codigo_grupo||'%' ) " & vbNewLine
+        End If
+
+        If grupo <> "" Then
+            sql += " and g.codigo like '" & grupo & "%'"
+        End If
+
+        If area <> "" Then
+            sql += " and g.area = '" & area & "'"
+        End If
+        If area_interna <> "" Then
+            sql += " and g.area_interna = '" & area_interna & "'"
+        End If
+
+        sql += "    group by  op.plano "
+        sql += "    order by  op.plano "
+
+
+        Dim dt As DataTable = _dao_commons.myDataTable(sql)
+
+        Return dt
+
+
+
+    End Function
+
+#Region "Ramal"
+
+    Function GetTop10Ramal(pTipo As String, vencimento As String, grupo As String, area As String, area_interna As String, codigousuario As String) As DataTable
+        Dim session As HttpSessionState = HttpContext.Current.Session
+        Dim sql As String = ""
+
+        sql += " select * from("
+        sql += " select usuario, gasto,data "
+        sql += " ,RANK() OVER (ORDER BY gasto desc)ordem "
+        sql += " from( select usuario,sum(gasto) gasto, data  from( "
+        'sql += " select sum(nvl(p1.total_gasto,p1.valor_cdr)) + nvl(max(p1.rateio),0) gasto, to_char(p3.dt_vencimento, 'MM/YYYY') data,nvl(u.nome_usuario,p1.rml_numero_a) usuario"
+        'sql += " select sum(nvl(p1.total_gasto,p1.valor_cdr))+ nvl(max(p1.parcela), 0)  + (nvl(max(p1.custo_fixo), 0) )+ nvl(max(p1.rateio),0)  gasto, to_char(p3.dt_vencimento, 'MM/YYYY') data,nvl(u.nome_usuario,p1.rml_numero_a) usuario"
+        sql += " select sum(nvl(p1.gasto,0)) gasto, p1.data,nvl(u.nome_usuario,p1.ramal) usuario"
+
+        'sql += " , p1.grp_codigo as codigo  "
+        sql += " from v_tarifacao p1, grupos p5,usuarios u  "
+        sql += " where   "
+        sql += " p1.grupo=p5.codigo(+) and p1.codigo_usuario=u.codigo(+) "
+
+        If vencimento <> "" Then
+            sql += " and replace(p1.data,'/','')='" & vencimento & "'"
+        End If
+        If grupo <> "" Then
+            sql += " and p5.codigo like '" & grupo & "%'"
+        End If
+
+        If area <> "" Then
+            sql += " and p5.area = '" & area & "'"
+        End If
+        If area_interna <> "" Then
+            sql += " and p5.area_interna = '" & area_interna & "'"
+        End If
+
+
+
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(codigousuario) & vbNewLine
+            ' sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grupo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+
+
+        sql += " group by nvl(u.nome_usuario,p1.ramal)"
+        sql += " ,data"
+        sql += " ) group by data, usuario "
+
+        'aparelho
+        sql += " union"
+        sql += " select usuario, nvl(sum(gasto),0) gasto, data"
+        sql += " from(select usuario, r.custo_ramal gasto, data"
+        sql += " from (select p1.data data,p1.ramal,p1.usuario "
+
+        sql += " from v_tarifacao p1, grupos p5 "
+        sql += " where   "
+        sql += "  p1.grupo(+)=p5.codigo  "
+
+        If vencimento <> "" Then
+            sql += " and replace(p1.data,'/','')='" & vencimento & "'"
+        End If
+        If grupo <> "" Then
+            sql += " and p5.codigo like '" & grupo & "%'"
+        End If
+
+        If area <> "" Then
+            sql += " and p5.area = '" & area & "'"
+        End If
+        If area_interna <> "" Then
+            sql += " and p5.area_interna = '" & area_interna & "'"
+        End If
+
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(codigousuario) & vbNewLine
+            ' sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grupo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+
+
+        sql += " and to_date(p1.data,'MM/YYYY')>= to_date(to_char(add_months(to_date(to_char(sysdate,'MM/YYYY'),'MM/YYYY'),-11),'MM/YYYY'),'MM/YYYY') "
+        sql += " and to_date(p1.data,'MM/YYYY')<= to_date(to_char(add_months(to_date(to_char(sysdate,'MM/YYYY'),'MM/YYYY'),0),'MM/YYYY'),'MM/YYYY')  " & vbNewLine
+        sql += " group by p1.ramal,p1.usuario "
+        sql += " ,p1.data"
+        sql += "  )p100, ramais r "
+        sql += " where p100.ramal=r.numero_a(+) "
+        sql += "   group by usuario,  data,r.custo_ramal "
+        sql += " )group by usuario,  data"
+
+        'custo gestao
+        sql += " union"
+        sql += " select usuario, nvl(sum(gasto),0) gasto, data"
+        sql += " from(select usuario, r.custo_servico gasto, data"
+        sql += " from (select p1.data data,p1.ramal,p1.usuario  "
+
+
+        sql += " from v_tarifacao p1, grupos p5 "
+        sql += " where   "
+        sql += "  p1.grupo(+)=p5.codigo  "
+        If vencimento <> "" Then
+            sql += " and replace(p1.data,'/','')='" & vencimento & "'"
+        End If
+        If grupo <> "" Then
+            sql += " and p5.codigo like '" & grupo & "%'"
+        End If
+
+        If area <> "" Then
+            sql += " and p5.area = '" & area & "'"
+        End If
+        If area_interna <> "" Then
+            sql += " and p5.area_interna = '" & area_interna & "'"
+        End If
+
+        If Not DALCGestor.AcessoAdmin(codigousuario) Then
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(codigousuario) & vbNewLine
+            ' sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grupo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+
+        sql += " and to_date(p1.data,'MM/YYYY')>= to_date(to_char(add_months(to_date(to_char(sysdate,'MM/YYYY'),'MM/YYYY'),-11),'MM/YYYY'),'MM/YYYY') "
+        sql += " and to_date(p1.data,'MM/YYYY')<= to_date(to_char(add_months(to_date(to_char(sysdate,'MM/YYYY'),'MM/YYYY'),0),'MM/YYYY'),'MM/YYYY')  " & vbNewLine
+        sql += " group by "
+
+        sql += "  p1.data,  p1.ramal,p1.usuario  "
+        sql += "  )p100, ramais r "
+        sql += " where p100.ramal=r.numero_a(+) "
+        sql += "   group by usuario,  data,r.custo_servico "
+        sql += " )group by usuario,  data"
+
+        sql += " ))"
+
+        'sql += " group by fs.status_desc"
+
+        ' Session("exibir_todos") = False Then
+        sql += " where ordem <=10 And rownum<=10 order by ordem"
+        'End If
+
+        Dim dt As DataTable = _dao_commons.myDataTable(sql)
+
+        Return dt
+
+    End Function
+
+    Function ExibeTarifacao() As Boolean
+        If _dao_commons.getLabel("EXIBE_TARIFACAO") = "S" Then
+
+            Return True
+        Else
+            Return False
+
+        End If
+
+    End Function
+
+#End Region
+
+
+
+End Class

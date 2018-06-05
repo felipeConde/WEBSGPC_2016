@@ -1,0 +1,13 @@
+﻿<%@ Page Title="" Language="VB" MasterPageFile="~/Site.master" AutoEventWireup="false" CodeFile="consumo_oper.aspx.vb" Inherits="consumo_mobile" %>
+
+<asp:Content ID="Content1" ContentPlaceHolderID="MainContent" Runat="Server">
+
+    <h4>Para saber o consumo atual de dados, acesse pelo seu dispositivo móvel, desligue seu wi-fi e <a href="consumo_oper.aspx"> toque aqui.</a></h4>
+
+    <iframe src="http://consumo.claro.com.br" width="99%" height="600px" border="0"></iframe>
+
+ 
+</asp:Content>
+<asp:Content ID="Content2" ContentPlaceHolderID="FooterPlaceHolder1" Runat="Server">
+</asp:Content>
+

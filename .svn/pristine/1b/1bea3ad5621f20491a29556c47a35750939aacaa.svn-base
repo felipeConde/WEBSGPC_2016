@@ -1,0 +1,82 @@
+﻿
+Imports System.Data
+Partial Class GastoUsuario
+    Inherits System.Web.UI.Page
+    Public titulo As String = "MINHA CONTA"
+    Public subTitulo As String = "Veja os seus gastos"
+    Dim _dao_commons As New DAO_Commons
+
+    Private Sub GastoUsuario_Load(sender As Object, e As EventArgs) Handles Me.Load
+        If Session("codigousuario") Is Nothing Or Session("usuario") Is Nothing Then
+            Response.Redirect("Default.aspx")
+        End If
+
+        If Request.QueryString("mostraArea") = "S" Then
+
+            ViewState("mostraArea") = "S"
+            titulo = "CONSUMO DA ÁREA"
+            subTitulo = "Veja o consumo da sua equipe"
+            If _dao_commons.Is_Commom_User(Session("codigousuario")) Then
+                'usuario comum
+                Response.Redirect("GastoUsuario.aspx")
+            End If
+
+        End If
+        _dao_commons.strConn = Session("conexao")
+
+        If Session("codigousuario") Is Nothing Or Session("usuario") Is Nothing Then
+            Response.Redirect("Default.aspx")
+        End If
+        _dao_commons.strConn = Session("conexao")
+        getGoogleAnalytics()
+
+        If _dao_commons.getLabel("EXIBE_TARIFACAO") = "S" Then
+            Me.exibe_tarifacao.Visible = True
+        Else
+            Me.exibe_tarifacao.Visible = False
+        End If
+        TemFaturasCarregadas()
+
+    End Sub
+
+    Sub getGoogleAnalytics()
+        Dim myItems As List(Of AppGeneric) = _dao_commons.GetGenericList("ANALYTICS_GESTAO", "NOME_PARAMETRO", "VALOR_PARAMETRO", "PARAMETROS_SGPC")
+        If myItems.Count > 0 Then
+            Dim _code As String = myItems.Item(0).Descricao.ToString
+
+            Page.ClientScript.RegisterStartupScript(Type.GetType("System.String"), "addScript", _code, True)
+
+        End If
+
+    End Sub
+
+    Sub TemFaturasCarregadas()
+
+        If _dao_commons.getLabel("EXIBE_TARIFACAO") = "S" Then
+
+            'se nao tiver fatura redireciona p/ tarifação
+            Dim sql As String = "select count(*) from faturas"
+            Dim dt As DataTable = _dao_commons.myDataTable(sql)
+            If dt.Rows(0).Item(0) < 1 Then
+
+                'If _dao_commons.Is_Commom_User(Session("codigousuario")) Then
+                '    'usuario comum
+                '    Response.Redirect("GastoUsuarioRamal.aspx")
+                'Else
+
+                'End If
+
+                Response.Redirect("GastoUsuarioRamal.aspx?mostraArea=" & ViewState("mostraArea"))
+
+
+
+            End If
+
+
+        End If
+
+    End Sub
+
+
+
+End Class

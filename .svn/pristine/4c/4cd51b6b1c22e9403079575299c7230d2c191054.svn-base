@@ -1,0 +1,561 @@
+﻿Imports System.Data
+Imports System.Data.OleDb
+Imports System.Globalization
+Imports Microsoft.VisualBasic
+Imports System.Web.UI
+
+Partial Class uc_graficoUsuarioMedia
+    Inherits System.Web.UI.Page
+    Dim strConexao As String = ""
+    Dim strSQL As String = ""
+    Public _dao_commons As New DAO_Commons
+    Public countservs As Integer = 10
+    Dim _tipoRel As String = ""
+    Public negativeValue As Decimal = 0
+    Public tituloGrafico As String = "Evolução dos Custos - Usuário X Média da Área"
+
+
+    Public Class Serie
+        Private _nome As String
+        Public Property Nome As String
+            Get
+                Return _nome
+            End Get
+            Set(value As String)
+                _nome = value
+            End Set
+        End Property
+
+        Private _data As String
+        Public Property Data As String
+            Get
+                Return _data
+            End Get
+            Set(value As String)
+                _data = value
+            End Set
+        End Property
+    End Class
+
+    Public GraficoDataTotal As String
+    Public GraficoLabelTotal As String
+
+
+    Sub teste()
+
+        Dim strlegenda As String = "select data from(" & getQueryTotalGeral() & ") group by data order by to_date(data,'MM/YYYY') asc "
+
+
+        Dim dt As DataTable = _dao_commons.myDataTable(strlegenda)
+
+    End Sub
+
+
+    Sub CarregaGraficoTotal()
+        Dim strlegenda As String = "select data from(" & getQueryTotalGeral() & ") group by data order by to_date(data,'MM/YYYY') asc "
+
+
+        Dim dt As DataTable = _dao_commons.myDataTable(strlegenda)
+        Dim categorias As New List(Of String)
+
+
+        Dim i As Integer = 0
+        For i = 0 To dt.Rows.Count - 1
+            GraficoLabelTotal += ""
+            GraficoLabelTotal += "'" & dt.Rows(i).Item(0) & "'"
+            GraficoLabelTotal += ","
+            categorias.Add(dt.Rows(i).Item(0))
+
+            'coloca os valores
+            'movel
+            'GraficoData += dt.Rows(0).Item(i).ToString.Replace(".", "").Replace("R$ ", "").Replace(",", ".") & ","
+        Next
+
+        'agora vamos montar as series
+        Dim strNomeSerie As String = "select distinct tarifa from(" & getQueryTotalGeral() & ") order by tarifa asc "
+        dt = _dao_commons.myDataTable(strNomeSerie)
+        Dim _series As New List(Of Serie)
+
+        For i = 0 To dt.Rows.Count - 1
+            Dim _serie As New Serie
+            _serie.Nome = dt.Rows(i).Item(0)
+            _serie.Data = "["
+            _series.Add(_serie)
+        Next
+
+        Dim maxvalue As Decimal = 0
+
+        'dt = _dao_commons.myDataTable(getQueryTotalGeral)
+        For Each _item As Serie In _series
+            For Each _categoria As String In categorias
+                dt = _dao_commons.myDataTable("select * from (" & getQueryTotalGeral(_categoria) & ") where data='" & _categoria & "' and tarifa='" & _item.Nome & "' order by data,tarifa")
+                'Dim achou As Boolean = False
+                ' For i = 0 To dt.Rows.Count - 1
+
+                ' If dt.Rows(i).Item(0) = _item.Nome Then
+
+                If dt.Rows.Count > 0 Then
+                    'adiciona na serie
+                    _item.Data = _item.Data & dt.Rows(0).Item(1).ToString.Replace(".", "").Replace(",", ".") & ","
+
+                    If negativeValue > Convert.ToDouble(dt.Rows(0).Item(1).ToString) Then
+                        negativeValue = Convert.ToDouble(dt.Rows(0).Item(1).ToString)
+                    End If
+
+                    If maxvalue < Convert.ToDouble(dt.Rows(0).Item(1).ToString) Then
+                        maxvalue = Convert.ToDouble(dt.Rows(0).Item(1).ToString)
+                    End If
+                    'achou = True
+                Else
+                    'achou = False
+                    _item.Data = _item.Data & 0 & ","
+                End If
+                'If Not achou And i >= 0 Then
+                '    _item.Data = _item.Data & "0,"
+                '    'achou = True
+                'Else
+                '    'achou = False
+                'End If
+
+                'Next
+            Next
+        Next
+
+            If negativeValue <> 0 Then
+            negativeValue = negativeValue - maxvalue / 10
+        End If
+
+        'retiramos a ultima virgula e fechamos a TAG
+        For Each _item As Serie In _series
+            _item.Data = _item.Data.Substring(0, _item.Data.Length - 1)
+            _item.Data = _item.Data & "]"
+
+            GraficoDataTotal += "{name: '" & _item.Nome & " ',data:" & _item.Data & "},"
+
+        Next
+
+
+        If GraficoDataTotal <> "" Then
+            If GraficoDataTotal.Substring(GraficoDataTotal.Length - 1, 1) = "," Then
+                GraficoDataTotal = GraficoDataTotal.Substring(0, GraficoDataTotal.Length - 1)
+            End If
+        End If
+        If ViewState("codigo_usuario") <> "" And ViewState("codigo_usuario") < 0 Then
+            tituloGrafico = "Evolução dos Custos"
+        Else
+            tituloGrafico = "Evolução dos Custos - Usuário X Média da Área"
+        End If
+
+    End Sub
+
+    Sub CarregaGraficoTotalRamal()
+        Dim strlegenda As String = "select data from(" & getQueryTotalGeralRamal() & ") group by data order by to_date(data,'MM/YYYY') asc "
+
+
+        Dim dt As DataTable = _dao_commons.myDataTable(strlegenda)
+        Dim categorias As New List(Of String)
+
+
+        Dim i As Integer = 0
+        For i = 0 To dt.Rows.Count - 1
+            GraficoLabelTotal += ""
+            GraficoLabelTotal += "'" & dt.Rows(i).Item(0) & "'"
+            GraficoLabelTotal += ","
+            categorias.Add(dt.Rows(i).Item(0))
+
+            'coloca os valores
+            'movel
+            'GraficoData += dt.Rows(0).Item(i).ToString.Replace(".", "").Replace("R$ ", "").Replace(",", ".") & ","
+        Next
+
+        'agora vamos montar as series
+        Dim strNomeSerie As String = "select distinct tarifa from(" & getQueryTotalGeralRamal() & ") order by tarifa asc "
+        dt = _dao_commons.myDataTable(strNomeSerie)
+        Dim _series As New List(Of Serie)
+
+        For i = 0 To dt.Rows.Count - 1
+            Dim _serie As New Serie
+            _serie.Nome = dt.Rows(i).Item(0)
+            _serie.Data = "["
+            _series.Add(_serie)
+        Next
+
+        Dim maxvalue As Decimal = 0
+
+        'dt = _dao_commons.myDataTable(getQueryTotalGeral)
+        For Each _item As Serie In _series
+            For Each _categoria As String In categorias
+                dt = _dao_commons.myDataTable("select * from (" & getQueryTotalGeralRamal(_categoria) & ") where data='" & _categoria & "' and tarifa='" & _item.Nome & "' order by data,tarifa")
+                'Dim achou As Boolean = False
+                ' For i = 0 To dt.Rows.Count - 1
+
+                ' If dt.Rows(i).Item(0) = _item.Nome Then
+
+                If dt.Rows.Count > 0 Then
+                    'adiciona na serie
+                    _item.Data = _item.Data & dt.Rows(0).Item(1).ToString.Replace(".", "").Replace(",", ".") & ","
+
+                    If negativeValue > Convert.ToDouble(dt.Rows(0).Item(1).ToString) Then
+                        negativeValue = Convert.ToDouble(dt.Rows(0).Item(1).ToString)
+                    End If
+
+                    If maxvalue < Convert.ToDouble(dt.Rows(0).Item(1).ToString) Then
+                        maxvalue = Convert.ToDouble(dt.Rows(0).Item(1).ToString)
+                    End If
+                    'achou = True
+                Else
+                    'achou = False
+                    _item.Data = _item.Data & 0 & ","
+                End If
+                'If Not achou And i >= 0 Then
+                '    _item.Data = _item.Data & "0,"
+                '    'achou = True
+                'Else
+                '    'achou = False
+                'End If
+
+                'Next
+            Next
+        Next
+
+        If negativeValue <> 0 Then
+            negativeValue = negativeValue - maxvalue / 10
+        End If
+
+        'retiramos a ultima virgula e fechamos a TAG
+        For Each _item As Serie In _series
+            _item.Data = _item.Data.Substring(0, _item.Data.Length - 1)
+            _item.Data = _item.Data & "]"
+
+            GraficoDataTotal += "{name: '" & _item.Nome & " ',data:" & _item.Data & "},"
+
+        Next
+
+
+        If GraficoDataTotal <> "" Then
+            If GraficoDataTotal.Substring(GraficoDataTotal.Length - 1, 1) = "," Then
+                GraficoDataTotal = GraficoDataTotal.Substring(0, GraficoDataTotal.Length - 1)
+            End If
+        End If
+        If ViewState("codigo_usuario") <> "" And ViewState("codigo_usuario") < 0 Then
+            tituloGrafico = "Evolução dos Custos"
+        Else
+            tituloGrafico = "Evolução dos Custos - Usuário X Média da Área"
+        End If
+    End Sub
+
+    Function getQueryTotalGeral(Optional pdata As String = "") As String
+        Dim _data As String = DALCGestor.MaxUltimaDataFatura()
+
+        _data = _data.Substring(3)
+
+        Dim sql As String = ""
+        sql += " select tarifa, nvl(sum(gasto),0)gasto, data from ("
+
+
+        sql += " select 'GASTO' tarifa,"
+        'sql += " sum(p1.valor_cdr)gasto"
+        'sql += " sum(nvl(p1.total_gasto,p1.valor_cdr)) + case when to_date(to_char(p3.dt_vencimento,'MM/YYYY'),'MM/YYYY')<= to_date(to_char(pa.fim_parcela,'MM/YYYY'),'MM/YYYY') then nvl(pa.parcela,0) else 0 end +nvl(op.custo_fixo,0)  gasto "
+        sql += " sum(nvl(p1.total_gasto,p1.valor_cdr)) + case when to_date(to_char(p3.dt_vencimento,'MM/YYYY'),'MM/YYYY')<= to_date(to_char(pa.fim_parcela,'MM/YYYY'),'MM/YYYY')  and  MONTHS_BETWEEN (to_date(to_char(p3.dt_vencimento,'MM/YYYY'),'MM/YYYY'), to_date(to_char(pa.inicio_parcela,'MM/YYYY'),'MM/YYYY'))>=0 then nvl(pa.parcela,0) else 0 end + nvl(pa.CUSTO_FIXO ,0) gasto "
+
+        'sql = sql + " sum(nvl(p1.valor_cdr-(case when p1.aprovada='S' then p1.valor_devolvido else 0 end), 0)) gasto"
+
+        sql += ",to_char(p3.dt_vencimento, 'MM/YYYY')data,P1.RML_NUMERO_A  "
+        sql += " from CDRS_CELULAR_analitico_mv p1, faturas_arquivos p2, faturas p3 , tarifacao p4,V_LINHAS_PARCELAS_CUSTOS  pa"
+        sql += " where p1.codigo_conta=p2.codigo_conta and p3.codigo_fatura=p2.codigo_fatura "
+        sql += " and p1.tarif_codigo = p4.codigo(+) and p3.codigo_tipo in (1,2) "
+        'sql += " and p1.cdr_codigo='3' "
+        sql += "  and p1.codigo_usuario=pa.codigo_usuario(+) and p1.rml_numero_a=pa.num_linha(+)"
+        ' sql += " and p1.grp_codigo is not null "
+
+        If ViewState("codigo_usuario") <> "" And ViewState("codigo_usuario") > 0 Then
+            sql += " and p1.codigo_usuario='" & ViewState("codigo_usuario") & "'"
+        End If
+
+        If pdata <> "" Then
+            sql += " and to_char(p3.dt_vencimento, 'MM/YYYY')='" & pdata & "'"
+        End If
+
+
+        If Not DALCGestor.AcessoAdmin() And ViewState("usuarioComum") <> "1" Then
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(Session("codigousuario")) & vbNewLine
+            'sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+        sql += " and to_date(to_char(p3.dt_vencimento, 'MM/YYYY'),'MM/YYYY')>= to_date(to_char(add_months(to_date('" & _data & "','MM/YYYY'),-11),'MM/YYYY'),'MM/YYYY') "
+        sql += " and to_date(to_char(p3.dt_vencimento, 'MM/YYYY'),'MM/YYYY')<= to_date(to_char(add_months(to_date('" & _data & "','MM/YYYY'),0),'MM/YYYY'),'MM/YYYY')  " & vbNewLine
+
+
+        sql += " group by to_char(p3.dt_vencimento, 'MM/YYYY'),nvl(pa.PARCELA,0),pa.fim_parcela ,pa.inicio_parcela, nvl(pa.CUSTO_FIXO ,0) , p1.rml_numero_a "
+
+        'rateio
+        sql += " union"
+        sql += " select distinct 'GASTO' tarifa, nvl(r.rateio,0)  gasto, to_char(f.dt_vencimento, 'MM/YYYY')data,'-' "
+        sql = sql + " from cdrs_celular_analitico_mv p1,faturas f,faturas_arquivos a,RateioGestao_MV r "
+        sql = sql + " where p1.codigo_conta=a.codigo_conta"
+        sql = sql + " and a.codigo_fatura=f.codigo_fatura and f.codigo_fatura=r.codigo_fatura "
+        sql = sql + " and replace(replace(REPLACE(r.rml_numero_a(+), ')', ''), '(',''),'-','') = replace(replace(REPLACE(p1.rml_numero_a, ')', ''), '(',''),'-','')"
+        'tira as cobranças de franquias
+        sql = sql + " and not exists (select 0 from FRANQUIAS_COBRANCAS t where t.codigo_franquia in (select codigo_franquia from franquias where codigo_fatura=a.codigo_fatura and servico=p1.tipo_serv2))"
+        '  sql += " and p1.codigo_usuario='" & ViewState("codigo_usuario") & "'"
+        If ViewState("codigo_usuario") <> "" And ViewState("codigo_usuario") > 0 Then
+            sql += " and p1.codigo_usuario='" & ViewState("codigo_usuario") & "'"
+        End If
+
+        If Not DALCGestor.AcessoAdmin() And ViewState("usuarioComum") <> "1" Then
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(Session("codigousuario")) & vbNewLine
+            'sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+        If pdata <> "" Then
+            sql += " and to_char(f.dt_vencimento, 'MM/YYYY')='" & pdata & "'"
+        End If
+        sql += " and to_date(to_char(f.dt_vencimento, 'MM/YYYY'),'MM/YYYY')>= to_date(to_char(add_months(to_date('" & _data & "','MM/YYYY'),-11),'MM/YYYY'),'MM/YYYY') "
+        sql += " and to_date(to_char(f.dt_vencimento, 'MM/YYYY'),'MM/YYYY')<= to_date(to_char(add_months(to_date('" & _data & "','MM/YYYY'),0),'MM/YYYY'),'MM/YYYY')  " & vbNewLine
+        sql = sql + "group by nvl(r.rateio,0), r.codigo_fatura,to_char(f.dt_vencimento, 'MM/YYYY') "
+
+
+
+
+
+        'sql += " union "
+        'sql += " select tarifa,round(sum(gasto)/count(*),2) GASTO, to_char(DATA)DATA FROM ( select 'MÉDIA' tarifa,  sum(nvl(p1.total_gasto,p1.valor_cdr))+sum(nvl(op.custo_fixo,0))+max(nvl(p1.parcela,0)) gasto,P1.RML_NUMERO_A,to_char(p3.dt_vencimento, 'MM/YYYY')data  "
+        'sql += " from CDRS_CELULAR_analitico_mv p1, faturas_arquivos p2, faturas p3 , tarifacao p4 ,  operadoras_planos op, linhas l, linhas_moveis lm,aparelhos_moveis ap "
+        'sql += " where p1.codigo_conta=p2.codigo_conta and p3.codigo_fatura=p2.codigo_fatura "
+        'sql += " and p1.tarif_codigo = p4.codigo(+)"
+        ''sql += "  and p1.rml_numero_a=pa.num_linha(+)"
+        ''sql += "  and nvl(pa.qtd_parcelas,1) - MONTHS_BETWEEN (to_date(to_char(p3.dt_vencimento,'MM/YYYY'),'MM/YYYY'), to_date(to_char(pa.inicio_parcela,'MM/YYYY'),'MM/YYYY'))>0"
+        ''sql += "  and rownum<2 "
+
+        'sql += "  and   replace(replace(replace(replace(l.num_linha(+),'(',''),')',''),'-',''),' ','')=p1.rml_numero_a "
+        'sql += " and op.codigo_plano=l.codigo_plano and l.codigo_linha=lm.codigo_linha and lm.codigo_aparelho=ap.codigo_aparelho(+)  "
+        ''sql += " and  p1.cdr_codigo <> '3' "
+        'If ViewState("codOper") <> "" And ViewState("codOper") > 0 Then
+        '    sql += " and p3.codigo_operadora='" & ViewState("codOper") & "'"
+        'End If
+        'If ViewState("codServico") <> "" Then
+        '    sql += " and p3.codigo_tipo='" & ViewState("codServico") & "'"
+        'ElseIf ViewState("codServico") = "" And ViewState("codOper") = "" Then
+        '    sql += " "
+        'End If
+        'If pdata <> "" Then
+        '    sql += " and to_char(p3.dt_vencimento, 'MM/YYYY')='" & pdata & "'"
+        'End If
+        'sql += " and not exists (select 0 from linhas l where l.codigo_tipo=10 and replace(replace(replace(replace(l.num_linha,'(',''),')',''),'-',''),' ','')=p1.rml_numero_a) "
+
+        ''If Not DALCGestor.AcessoAdmin() And ViewState("usuarioComum") <> "1" Then
+        ''    'não filtra o centro de custo dos gerentes
+        ''    sql = sql + " and exists(" & vbNewLine
+        ''    sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+        ''    sql = sql + "     where p100.codigo_usuario=" + Trim(Session("codigousuario")) & vbNewLine
+        ''    sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+        ''    sql = sql + "     and to_char(p1.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+        ''ElseIf ViewState("usuarioComum") = "1" Then
+        ''    sql = sql + " And to_char(p1.grp_codigo) = (select grp_codigo from usuarios where codigo=' " & Session("codigousuario") & "' ) "
+        ''End If
+
+        'sql += " and to_date(to_char(p3.dt_vencimento, 'MM/YYYY'),'MM/YYYY')>= to_date(to_char(add_months(to_date('" & _data & "','MM/YYYY'),-11),'MM/YYYY'),'MM/YYYY') "
+        'sql += " and to_date(to_char(p3.dt_vencimento, 'MM/YYYY'),'MM/YYYY')<= to_date(to_char(add_months(to_date('" & _data & "','MM/YYYY'),0),'MM/YYYY'),'MM/YYYY')  " & vbNewLine
+        'sql += " group by to_char(p3.dt_vencimento, 'MM/YYYY'),P1.RML_NUMERO_A "
+        'sql += " )  GROUP BY tarifa,data"
+
+        If ViewState("codigo_usuario") <> "" And ViewState("codigo_usuario") > 0 Then
+
+
+            sql += " union "
+            sql += " select tarifa,round(sum(gasto)/count(*),2) GASTO, to_char(DATA)DATA ,RML_NUMERO_A FROM ( select 'MÉDIA' tarifa,  sum(nvl(p1.total_gasto,p1.valor_cdr))+max(case when to_date(to_char(p3.dt_vencimento,'MM/YYYY'),'MM/YYYY')<= to_date(to_char(pa.fim_parcela,'MM/YYYY'),'MM/YYYY') then nvl(pa.parcela,0) else 0 end)+sum(nvl(pa.CUSTO_FIXO ,0)) gasto,'media' RML_NUMERO_A,to_char(p3.dt_vencimento, 'MM/YYYY')data  "
+            sql += " from CDRS_CELULAR_analitico_mv p1, faturas_arquivos p2, faturas p3 , tarifacao p4 , V_LINHAS_PARCELAS_CUSTOS pa"
+            sql += " where p1.codigo_conta=p2.codigo_conta and p3.codigo_fatura=p2.codigo_fatura "
+            sql += " and p1.tarif_codigo = p4.codigo(+)"
+            sql += "  and p1.codigo_usuario=pa.codigo_usuario(+) and p1.rml_numero_a=pa.num_linha(+)"
+            'sql += "  and p1.rml_numero_a=pa.num_linha(+)"
+            'sql += "  and nvl(pa.qtd_parcelas,1) - MONTHS_BETWEEN (to_date(to_char(p3.dt_vencimento,'MM/YYYY'),'MM/YYYY'), to_date(to_char(pa.inicio_parcela,'MM/YYYY'),'MM/YYYY'))>0"
+            'sql += "  and rownum<2 "
+
+
+            'sql += " and  p1.cdr_codigo <> '3' "
+            If ViewState("codOper") <> "" And ViewState("codOper") > 0 Then
+                sql += " and p3.codigo_operadora='" & ViewState("codOper") & "'"
+            End If
+            If ViewState("codServico") <> "" Then
+                sql += " and p3.codigo_tipo='" & ViewState("codServico") & "'"
+            ElseIf ViewState("codServico") = "" And ViewState("codOper") = "" Then
+                sql += " "
+            End If
+            If pdata <> "" Then
+                sql += " and to_char(p3.dt_vencimento, 'MM/YYYY')='" & pdata & "'"
+            End If
+            sql += " and not exists (select 0 from linhas l where l.codigo_tipo=10 and replace(replace(replace(replace(l.num_linha,'(',''),')',''),'-',''),' ','')=p1.rml_numero_a) "
+
+            'If Not DALCGestor.AcessoAdmin() And ViewState("usuarioComum") <> "1" Then
+            '    'não filtra o centro de custo dos gerentes
+            '    sql = sql + " and exists(" & vbNewLine
+            '    sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            '    sql = sql + "     where p100.codigo_usuario=" + Trim(Session("codigousuario")) & vbNewLine
+            '    sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            '    sql = sql + "     and to_char(p1.grp_codigo) like p100.codigo_grupo||'%' )" & vbNewLine
+            'ElseIf ViewState("usuarioComum") = "1" Then
+            '    sql = sql + " And to_char(p1.grp_codigo) = (select grp_codigo from usuarios where codigo=' " & Session("codigousuario") & "' ) "
+            'End If
+
+            sql += " and to_date(to_char(p3.dt_vencimento, 'MM/YYYY'),'MM/YYYY')>= to_date(to_char(add_months(to_date('" & _data & "','MM/YYYY'),-11),'MM/YYYY'),'MM/YYYY') "
+            sql += " and to_date(to_char(p3.dt_vencimento, 'MM/YYYY'),'MM/YYYY')<= to_date(to_char(add_months(to_date('" & _data & "','MM/YYYY'),0),'MM/YYYY'),'MM/YYYY')  " & vbNewLine
+            sql += " group by to_char(p3.dt_vencimento, 'MM/YYYY'),P1.RML_NUMERO_A "
+            sql += " )  GROUP BY tarifa,data,RML_NUMERO_A"
+        End If
+        sql += ") group by tarifa,data  "
+        'sql += " order  by to_date(data,'MM/YYYY'),tarifa "
+
+        'Response.Write(sql)
+        'Response.End()
+
+        Return sql
+    End Function
+
+    Function getQueryTotalGeralRamal(Optional pdata As String = "") As String
+        Dim _data As String = Date.Now.ToShortDateString
+
+        _data = _data.Substring(3)
+
+        Dim sql As String = ""
+        sql += " select tarifa, nvl(sum(gasto),0)gasto, data from ("
+
+
+        sql += " select 'GASTO' tarifa,"
+        'sql += " sum(p1.valor_cdr)gasto"
+        'sql += " sum(nvl(p1.total_gasto,p1.valor_cdr)) + case when to_date(to_char(p3.dt_vencimento,'MM/YYYY'),'MM/YYYY')<= to_date(to_char(pa.fim_parcela,'MM/YYYY'),'MM/YYYY') then nvl(pa.parcela,0) else 0 end +nvl(op.custo_fixo,0)  gasto "
+        sql += " nvl(sum(p1.gasto),0) gasto "
+
+        'sql = sql + " sum(nvl(p1.valor_cdr-(case when p1.aprovada='S' then p1.valor_devolvido else 0 end), 0)) gasto"
+
+        sql += ",p1.data data  "
+        sql += " from v_tarifacao p1 where 1=1 "
+
+        If ViewState("codigo_usuario") <> "" And ViewState("codigo_usuario") > 0 Then
+            sql += " and p1.codigo_usuario='" & ViewState("codigo_usuario") & "'"
+        End If
+
+        If pdata <> "" Then
+            sql += " and p1.data='" & pdata & "'"
+        End If
+
+
+        If Not DALCGestor.AcessoAdmin() And ViewState("usuarioComum") <> "1" Then
+            'não filtra o centro de custo dos gerentes
+            sql = sql + " and exists(" & vbNewLine
+            sql = sql + "   select 0 from categoria_usuario p100" & vbNewLine
+            sql = sql + "     where p100.codigo_usuario=" + Trim(Session("codigousuario")) & vbNewLine
+            sql = sql + "     and p100.tipo_usuario in('D','G','GC')" & vbNewLine
+            sql = sql + "     and to_char(p1.grupo) like p100.codigo_grupo||'%' )" & vbNewLine
+        End If
+        sql += " and to_date(p1.data,'MM/YYYY')>= to_date(to_char(add_months(to_date(to_char(sysdate,'MM/YYYY'),'MM/YYYY'),-11),'MM/YYYY'),'MM/YYYY') "
+        sql += " and to_date(p1.data,'MM/YYYY')<= to_date(to_char(add_months(to_date(to_char(sysdate,'MM/YYYY'),'MM/YYYY'),0),'MM/YYYY'),'MM/YYYY')  " & vbNewLine
+        sql += " group by p1.data "
+
+        If ViewState("codigo_usuario") <> "" And ViewState("codigo_usuario") > 0 Then
+            sql += " union "
+            sql += " select tarifa,round(sum(gasto)/count(*),2) GASTO, to_char(DATA)DATA FROM ( select 'MÉDIA' tarifa,  sum(nvl(p1.gasto,0)) gasto,P1.ramal,p1.data  "
+            sql += " from v_tarifacao p1 "
+            sql += " where 1=1 "
+
+            If pdata <> "" Then
+                sql += " and p1.data='" & pdata & "'"
+            End If
+
+
+            sql += " and to_date(p1.data,'MM/YYYY')>= to_date(to_char(add_months(to_date(to_char(sysdate,'MM/YYYY'),'MM/YYYY'),-11),'MM/YYYY'),'MM/YYYY') "
+            sql += " and to_date(p1.data,'MM/YYYY')<= to_date(to_char(add_months(to_date(to_char(sysdate,'MM/YYYY'),'MM/YYYY'),0),'MM/YYYY'),'MM/YYYY')  " & vbNewLine
+            sql += " group by p1.data,P1.ramal "
+            sql += " )  GROUP BY tarifa,data"
+        End If
+        sql += ") group by tarifa,data  "
+        'sql += " order  by to_date(data,'MM/YYYY'),tarifa "
+
+        'Response.Write(sql)
+        'Response.End()
+
+        Return sql
+    End Function
+
+
+    Private Sub uc_graficoUsuarioMedia_Load(sender As Object, e As EventArgs) Handles Me.Load
+
+
+        If Not Page.IsPostBack Then
+            ViewState("codigo_usuario") = Request.QueryString("codigousuario")
+            If _dao_commons.Is_Commom_User(Session("codigousuario")) Then
+                'Response.Write(Session("codigousuario"))
+                'usuario comum
+                'Response.Redirect("GastoUsuario.aspx")
+                ViewState("usuarioComum") = "1"
+            End If
+            'teste()
+            If Request.QueryString("ramal") = 1 Then
+                CarregaGraficoTotalRamal()
+            Else
+                'movel
+                CarregaGraficoTotal()
+            End If
+
+
+
+        End If
+
+
+
+
+    End Sub
+
+    Public Function myDataTableV2(ByVal SQL As String) As DataTable
+        'Dim cn As OleDbConnection
+        'Dim dsTemp As DataSet
+        'Dim dsCmd As OleDbDataAdapter
+
+        'cn = New OleDbConnection(Session("conexao"))
+        'cn.Open()
+
+        'dsCmd = New OleDbDataAdapter(SQL, cn)
+        'dsTemp = New DataSet()
+        'dsCmd.Fill(dsTemp, "myQuery2")
+        'cn.Close()
+        'Return dsTemp.Tables(0)
+
+
+
+        'Dim conn As New OleDbConnection(Session("conexao"))
+        'Dim cmd As New OleDbCommand("", conn)
+        'Dim da As New OleDbDataAdapter("", conn)
+        'Dim ds As New DataSet
+        'da.SelectCommand.CommandText = SQL
+        'da.Fill(ds)
+        'Return ds.Tables(0)
+
+        Dim dt As New DataTable
+        Dim connection As New OleDbConnection(Session("conexao"))
+        Using connection
+            Dim command As OleDbCommand = New OleDbCommand(SQL, connection)
+            connection.Open()
+
+            Dim reader As OleDbDataReader = command.ExecuteReader()
+            dt.Load(reader)
+
+            'Do While reader.HasRows
+
+            '    'Do While reader.Read()
+            '    '    Dim teste = reader.GetString(0)
+            '    'Loop
+
+            '    'reader.NextResult()
+
+            'Loop
+        End Using
+        Return dt
+
+    End Function
+End Class
